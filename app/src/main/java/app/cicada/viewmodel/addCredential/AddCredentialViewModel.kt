@@ -1,7 +1,6 @@
 package app.cicada.viewmodel.addCredential
 
 import android.util.Patterns
-import androidx.compose.runtime.Composable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cicada.data.credential.CredentialRepository
@@ -14,6 +13,7 @@ class AddCredentialViewModel(
     private val credentialRepository : CredentialRepository
 ) : ViewModel() {
 
+    private var editingCredentialId: String? = null
     private val _uiState = MutableStateFlow(AddCredentialUIState())
 
     val uiState : StateFlow<AddCredentialUIState> = _uiState.asStateFlow()
@@ -51,7 +51,7 @@ class AddCredentialViewModel(
         )
     }
 
-    fun validateWebsiteURL(url : String): Boolean {
+    private fun validateWebsiteURL(url : String): Boolean {
         if (url.isBlank()) {
             return true
         }
@@ -59,62 +59,124 @@ class AddCredentialViewModel(
         return Patterns.WEB_URL.matcher(url.trim()).matches()
     }
 
-    fun addCredential() {
+    fun saveCredential() {
 
         val state = _uiState.value
+
+        var newState = state
 
         var hasError = false
 
         if (state.username.isBlank()) {
-            _uiState.value = state.copy(
-                usernameError = "username name cannot be empty"
+            newState = newState.copy(
+                usernameError = "Username cannot be empty"
             )
             hasError = true
         }
 
         if (state.password.isBlank()) {
-            _uiState.value = state.copy(
-                passwordError = "password cannot be empty"
+            newState = newState.copy(
+                passwordError = "Password cannot be empty"
             )
             hasError = true
         }
 
         if (!validateWebsiteURL(state.website)) {
-            _uiState.value = _uiState.value.copy(
+            newState = newState.copy(
                 websiteError = "Enter a valid website"
             )
             hasError = true
         }
+
+        _uiState.value = newState
 
         if (hasError) {
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = state.copy(
-                isSaving =  true,
+
+            _uiState.value = _uiState.value.copy(
+                isSaving = true,
                 errorMsg = null
             )
 
             try {
+                val credentialId = editingCredentialId
 
-                credentialRepository.addCredentialToVault(
-                    state.title,
-                    state.username,
-                    state.password,
-                    state.website,
-                    state.notes
-                )
+                if (credentialId == null) {
+                    credentialRepository.addCredentialToVault(
+                        state.title,
+                        state.username,
+                        state.password,
+                        state.website,
+                        state.notes
+                    )
+                } else {
+                    credentialRepository.updateCredential(
+                        credentialId = credentialId,
+                        title = state.title,
+                        username = state.username,
+                        password = state.password,
+                        website = state.website,
+                        notes = state.notes
+                    )
+                }
 
-                _uiState.value = state.copy(
+
+                _uiState.value = _uiState.value.copy(
                     isSaved = true,
                     isSaving = false
                 )
             } catch (e : Exception) {
-                _uiState.value = state.copy(
+                _uiState.value = _uiState.value.copy(
                     isSaved = false,
                     isSaving = false,
                     errorMsg = "Failed to add credential"
+                )
+            }
+        }
+    }
+
+    fun loadCredential(credentialId: String) {
+
+        if (editingCredentialId == credentialId) {
+            return
+        }
+
+        editingCredentialId = credentialId
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isLoading = true,
+                errorMsg = null
+            )
+
+            try {
+                val credential = credentialRepository.getCredential(credentialId)
+
+                if (credentialId == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMsg = "Credential not found"
+                    )
+
+                    return@launch
+                }
+
+                _uiState.value = _uiState.value.copy(
+                    title = credential.title,
+                    username = credential.username,
+                    password = credential.password,
+                    website = credential.website ?: "",
+                    notes = credential.notes ?: "",
+                    isLoading = false
+                )
+
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMsg = "Failed to load credential"
                 )
             }
         }

@@ -1,6 +1,5 @@
-package app.cicada.ui.addCredential
+package app.cicada.ui.addCredentialPage
 
-import android.R.attr.password
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -20,17 +19,29 @@ import app.cicada.viewmodel.addCredential.AddCredentialViewModel
 @Composable
 fun AddCredentialScreen(
     onNavigateBack: () -> Unit,
-    addCredentialViewModel: AddCredentialViewModel
+    addCredentialViewModel: AddCredentialViewModel,
+    credentialId: String? = null
 ) {
-    // State for the form inputs
     val uiState by addCredentialViewModel.uiState.collectAsState()
 
     var passwordVisible by remember { mutableStateOf(false) }
 
+    LaunchedEffect(credentialId) {
+        if(credentialId != null) {
+            addCredentialViewModel.loadCredential(credentialId)
+        }
+    }
+
+    LaunchedEffect(uiState.isSaved) {
+        if(uiState.isSaved) {
+            onNavigateBack()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("New Credential") },
+                title = { Text(if (credentialId == null) "New Credential" else "Edit Credential") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -42,18 +53,16 @@ fun AddCredentialScreen(
             )
         },
         floatingActionButton = {
-            // Disable the save button if required fields are empty
             ExtendedFloatingActionButton(
                 onClick = {
-                    addCredentialViewModel.addCredential()
+                    addCredentialViewModel.saveCredential()
                     println("Credential Saved to vault!!")
-                    onNavigateBack()
                 },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 expanded = true,
                 icon = { },
-                text = { Text("Save to Vault") }
+                text = { Text(if (credentialId == null) "Save to Vault" else "Update Vault") }
             )
         }
     ) { paddingValues ->
@@ -80,6 +89,12 @@ fun AddCredentialScreen(
                 label = { Text("Username or Email") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                isError = uiState.usernameError != null,
+                supportingText = {
+                    uiState.usernameError?.let {
+                        Text(it)
+                    }
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
             )
 
@@ -89,6 +104,12 @@ fun AddCredentialScreen(
                 label = { Text("Password") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                isError = uiState.passwordError != null,
+                supportingText = {
+                    uiState.passwordError?.let {
+                        Text(it)
+                    }
+                },
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 trailingIcon = {
@@ -107,6 +128,12 @@ fun AddCredentialScreen(
                 label = { Text("Website (e.g. www.google.com, www.instagram.com)") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                isError = uiState.websiteError != null,
+                supportingText = {
+                    uiState.websiteError?.let {
+                        Text(it)
+                    }
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
             )
 

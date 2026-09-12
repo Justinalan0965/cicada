@@ -9,6 +9,7 @@ data class AddCredentialUIState(
 
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
+    val isLoading: Boolean = false,
 
     val usernameError: String? = null,
     val passwordError: String? = null,
