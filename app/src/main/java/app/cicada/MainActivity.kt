@@ -2,18 +2,21 @@ package app.cicada
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.fragment.app.FragmentActivity
 import app.cicada.ui.navigation.CicadaNavigation
+import app.cicada.ui.theme.CicadaTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         setContent{
-            CicadaNavigation()
+            CicadaTheme {
+                CicadaNavigation()
+            }
         }
     }
 }

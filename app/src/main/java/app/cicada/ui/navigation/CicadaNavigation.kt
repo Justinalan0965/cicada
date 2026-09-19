@@ -9,6 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -16,20 +18,21 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.cicada.data.credential.CredentialRepository
 import app.cicada.data.database.CicadaDB
-import app.cicada.data.vault.VaultRepository
+import app.cicada.data.user.UserRepository
+import app.cicada.security.BiometricAuthenticator
 import app.cicada.security.CicadaClipboardManager
 import app.cicada.security.CryptoManager
 import app.cicada.security.VaultSession
 import app.cicada.ui.addCredentialPage.AddCredentialScreen
-import app.cicada.ui.createVaultPage.CreateVaultScreen
+import app.cicada.ui.createUserPage.CreateUserScreen
 import app.cicada.ui.homePage.HomeScreen
 import app.cicada.ui.loginPage.LoginScreen
 import app.cicada.ui.settingsPage.SettingScreen
 import app.cicada.ui.viewCredentialPage.ViewCredentialScreen
 import app.cicada.viewmodel.addCredential.AddCredentialViewModel
 import app.cicada.viewmodel.addCredential.AddCredentialViewModelFactory
-import app.cicada.viewmodel.createVault.CreateVaultViewModel
-import app.cicada.viewmodel.createVault.CreateVaultViewModelFactory
+import app.cicada.viewmodel.createUser.CreateUserViewModel
+import app.cicada.viewmodel.createUser.CreateUserViewModelFactory
 import app.cicada.viewmodel.home.HomeViewModel
 import app.cicada.viewmodel.home.HomeViewModelFactory
 import app.cicada.viewmodel.login.LoginViewModel
@@ -44,6 +47,10 @@ fun CicadaNavigation() {
 
     val context = LocalContext.current
 
+    val biometricAuthenticator = remember {
+        BiometricAuthenticator(context)
+    }
+
     val clipboardManager = remember {
         CicadaClipboardManager(context)
     }
@@ -56,15 +63,27 @@ fun CicadaNavigation() {
         CryptoManager()
     }
 
-    val vaultRepository = remember {
-        VaultRepository(
-            database.vaultDAO(),
+    val userRepository = remember {
+        UserRepository(
+            database.userDAO(),
             cryptoManager = cryptoManager
         )
     }
 
     val vaultSession = remember {
         VaultSession()
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (vaultSession.shouldAutoLock()) {
+            vaultSession.lock()
+
+            navController.navigate("login") {
+                popUpTo("home") {
+                    inclusive = true
+                }
+            }
+        }
     }
 
     val credentialRepository = remember {
@@ -80,20 +99,20 @@ fun CicadaNavigation() {
         startDestination = "login"
     ) {
 
-        composable("createVault") {
-            val createVaultViewModel : CreateVaultViewModel = viewModel(
-                factory = CreateVaultViewModelFactory(vaultRepository)
+        composable("createUser") {
+            val createUserViewModel : CreateUserViewModel = viewModel(
+                factory = CreateUserViewModelFactory(userRepository)
             )
 
-            CreateVaultScreen(
-                onVaultCreated = {
+            CreateUserScreen(
+                onUserCreated = {
                     navController.navigate("login") {
-                        popUpTo("createVault") {
+                        popUpTo("createUser") {
                             inclusive = true
                         }
                     }
                 },
-                createVaultViewModel = createVaultViewModel
+                createUserViewModel = createUserViewModel
             )
         }
 
@@ -102,7 +121,7 @@ fun CicadaNavigation() {
             val loginViewModel: LoginViewModel =
                 viewModel(
                     factory = LoginViewModelFactory(
-                        vaultRepository = vaultRepository,
+                        userRepository = userRepository,
                         vaultSession = vaultSession
                     )
                 )
@@ -116,8 +135,8 @@ fun CicadaNavigation() {
                     }
                 },
 
-                onCreateVault = {
-                    navController.navigate("createVault")
+                onCreateAccount = {
+                    navController.navigate("createUser")
                 },
                 loginViewModel = loginViewModel
             )
@@ -147,7 +166,17 @@ fun CicadaNavigation() {
                         restoreState = true
                     }
                 },
-                onClick = { credentialId -> navController.navigate("viewCredential/${credentialId}") }
+                onClick = { credentialId -> navController.navigate("viewCredential/${credentialId}") },
+
+                onLock = {
+                    vaultSession.lock()
+
+                    navController.navigate("login") {
+                        popUpTo("home") {
+                            inclusive = true
+                        }
+                    }
+                }
             )
         }
 
@@ -221,6 +250,38 @@ fun CicadaNavigation() {
             SettingScreen(
                 onBackClick = {
                     navController.popBackStack()
+                },
+                onLockVault = {
+                    vaultSession.lock()
+
+                    navController.navigate("login") {
+                        popUpTo("home") {
+                            inclusive = true
+                        }
+                    }
+                },
+                onTestBiometric = {
+                    if (biometricAuthenticator.canAuthenticate()) {
+                        biometricAuthenticator.authenticate(
+                            onSuccess = {
+                                android.util.Log.d(
+                                    "BiometricTest",
+                                    "Biometric authentication succeeded"
+                                )
+                            },
+                            onFailure = { error ->
+                                android.util.Log.d(
+                                    "BiometricTest",
+                                    "Biometric authentication failed: $error"
+                                )
+                            }
+                        )
+                    } else {
+                        android.util.Log.d(
+                            "BiometricTest",
+                            "Biometric authentication unavailable"
+                        )
+                    }
                 }
             )
         }

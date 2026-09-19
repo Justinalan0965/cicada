@@ -1,20 +1,20 @@
-package app.cicada.viewmodel.createVault
+package app.cicada.viewmodel.createUser
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import app.cicada.data.vault.VaultRepository
+import app.cicada.data.user.UserRepository
 
-class CreateVaultViewModelFactory(
-    private val vaultRepository: VaultRepository
+class CreateUserViewModelFactory(
+    private val userRepository: UserRepository
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(
         modelClass : Class<T>
     ): T {
-        if (modelClass.isAssignableFrom(CreateVaultViewModel::class.java)) {
-            return CreateVaultViewModel(
-                vaultRepository
+        if (modelClass.isAssignableFrom(CreateUserViewModel::class.java)) {
+            return CreateUserViewModel(
+                userRepository
             ) as T
         }
 

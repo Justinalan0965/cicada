@@ -1,14 +1,8 @@
 package app.cicada.viewmodel.login
 
-import android.R.attr.password
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import app.cicada.data.database.CicadaDB
-import app.cicada.data.vault.VaultInfo
-import app.cicada.data.vault.VaultRepository
-import app.cicada.security.CryptoManager
+import app.cicada.data.user.UserRepository
 import app.cicada.security.VaultSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,46 +10,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class LoginViewModel(
-    private val vaultRepository: VaultRepository,
+    private val userRepository: UserRepository,
     private val vaultSession: VaultSession
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(LoginUIState())
 
     val uiState: StateFlow<LoginUIState> = _uiState.asStateFlow()
 
-    init {
-        loadVaults()
-    }
-
-    private fun loadVaults() {
-
-        viewModelScope.launch {
-            vaultRepository
-                .getVaults()
-                .collect {
-                    vaults ->
-
-                    val currentlySelected = _uiState.value.selectedVault
-                    val selectedVault = currentlySelected?.let {
-                        selected ->
-
-                        vaults.find{
-                            it.id == selected.id
-                        }
-                    } ?: vaults.firstOrNull()
-
-                    _uiState.value = _uiState.value.copy(
-                        vaults = vaults,
-                        selectedVault = selectedVault
-                    )
-                }
-        }
-    }
-
-    fun selectVault(vault: VaultInfo) {
+    fun updateUsername(username: String) {
         _uiState.value = _uiState.value.copy(
-            selectedVault = vault,
-            vaultError = null,
+            username = username,
+            usernameError = null,
             loginError = null
         )
     }
@@ -68,15 +33,15 @@ class LoginViewModel(
         )
     }
 
-    fun unlockVault() {
+    fun login() {
 
         val currentState = _uiState.value
 
         var hasError = false
 
-        if (currentState.selectedVault == null) {
+        if (currentState.username.isBlank()) {
             _uiState.value = _uiState.value.copy(
-                vaultError = "Select a vault"
+                usernameError = "Username required"
             )
             hasError = true
         }
@@ -102,25 +67,46 @@ class LoginViewModel(
 
             try {
 
-                val vaultKey = vaultRepository.unlockVault(currentState.selectedVault!!.id, password)
+                val result = userRepository.unlockUser(
+                    username = currentState.username,
+                    password = password
+                )
 
-                if (vaultKey != null) {
+                if (result != null) {
 
-                    vaultSession.unlock(currentState.selectedVault!!.id, vaultKey)
-
-                    vaultKey.fill(0)
+                    try {
+                        vaultSession.unlock(
+                            result.userId,
+                            result.vaultKey
+                        )
+                    } finally {
+                        // VaultSession made its own copy
+                        result.vaultKey.fill(0)
+                    }
 
                     _uiState.value = _uiState.value.copy(
+                        isLoading = false,
                         loginError = null,
                         isLoginSuccess = true
                     )
+
                 } else {
+
                     _uiState.value = _uiState.value.copy(
-                        loginError = "Invalid password",
-                        isLoginSuccess = false,
-                        isLoading = false
+                        isLoading = false,
+                        loginError = "Invalid username or password",
+                        isLoginSuccess = false
                     )
                 }
+
+            } catch (e: Exception) {
+
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    loginError = "Login failed",
+                    isLoginSuccess = false
+                )
+
             } finally {
                 password.fill('\u0000')
             }

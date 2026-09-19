@@ -1,11 +1,11 @@
-package app.cicada.viewmodel.createVault
+package app.cicada.viewmodel.createUser
 
-data class CreateVaultUIState(
-    val vaultName: String = "",
+data class CreateUserUIState(
+    val username: String = "",
     val password: String = "",
     val confirmPassword: String = "",
 
-    val vaultNameError: String? = null,
+    val usernameError: String? = null,
     val passwordError: String? = null,
     val confirmPasswordError: String? = null,
     val errorMsg: String? = null,
