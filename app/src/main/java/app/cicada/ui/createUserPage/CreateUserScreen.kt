@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -83,7 +84,10 @@ fun CreateUserScreen(
             isError = uiState.usernameError != null,
             supportingText = {
                 uiState.usernameError?.let{
-                    Text(it)
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             shape = RoundedCornerShape(16.dp)
@@ -103,7 +107,10 @@ fun CreateUserScreen(
             isError = uiState.passwordError != null,
             supportingText = {
                 uiState.passwordError?.let {
-                    Text(it)
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             visualTransformation = if (passwordVisible) {
@@ -148,7 +155,10 @@ fun CreateUserScreen(
             isError = uiState.confirmPasswordError != null,
             supportingText = {
                 uiState.confirmPasswordError?.let {
-                    Text(it)
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             visualTransformation = if (confirmPasswordVisible) {

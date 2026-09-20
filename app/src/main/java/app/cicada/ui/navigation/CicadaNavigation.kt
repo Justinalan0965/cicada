@@ -1,13 +1,18 @@
 package app.cicada.ui.navigation
 
+import android.util.Log
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -18,8 +23,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.cicada.data.credential.CredentialRepository
 import app.cicada.data.database.CicadaDB
+import app.cicada.data.user.BiometricRepository
 import app.cicada.data.user.UserRepository
 import app.cicada.security.BiometricAuthenticator
+import app.cicada.security.BiometricKeyManager
 import app.cicada.security.CicadaClipboardManager
 import app.cicada.security.CryptoManager
 import app.cicada.security.VaultSession
@@ -39,6 +46,7 @@ import app.cicada.viewmodel.login.LoginViewModel
 import app.cicada.viewmodel.login.LoginViewModelFactory
 import app.cicada.viewmodel.viewCredential.ViewCredentialViewModel
 import app.cicada.viewmodel.viewCredential.ViewCredentialViewModelFactory
+import kotlinx.coroutines.launch
 
 @Composable
 fun CicadaNavigation() {
@@ -46,6 +54,8 @@ fun CicadaNavigation() {
     val navController = rememberNavController()
 
     val context = LocalContext.current
+
+    val coroutineScope = rememberCoroutineScope()
 
     val biometricAuthenticator = remember {
         BiometricAuthenticator(context)
@@ -94,6 +104,13 @@ fun CicadaNavigation() {
         )
     }
 
+    val biometricRepository = remember {
+        BiometricRepository(
+            userDAO = database.userDAO(),
+            vaultSession = vaultSession
+        )
+    }
+
     NavHost(
         navController = navController,
         startDestination = "login"
@@ -122,7 +139,8 @@ fun CicadaNavigation() {
                 viewModel(
                     factory = LoginViewModelFactory(
                         userRepository = userRepository,
-                        vaultSession = vaultSession
+                        vaultSession = vaultSession,
+                        biometricRepository = biometricRepository
                     )
                 )
 
@@ -137,6 +155,45 @@ fun CicadaNavigation() {
 
                 onCreateAccount = {
                     navController.navigate("createUser")
+                },
+                onBiometricLogin = {
+
+                    val username =
+                        loginViewModel.uiState.value.username
+
+                    loginViewModel.biometricLogin(
+                        username = username,
+
+                        onAuthenticate = { cipher ->
+
+                            biometricAuthenticator.authenticate(
+                                cipher = cipher,
+
+                                onSuccess = { authenticatedCipher ->
+
+                                    loginViewModel.completeBiometricLogin(
+                                        authenticatedCipher
+                                    )
+                                },
+
+                                onFailure = { error ->
+
+                                    android.util.Log.d(
+                                        "BiometricLogin",
+                                        "Authentication failed: $error"
+                                    )
+                                }
+                            )
+                        },
+
+                        onUnavailable = {
+
+                            android.util.Log.d(
+                                "BiometricLogin",
+                                "Biometric unlock unavailable"
+                            )
+                        }
+                    )
                 },
                 loginViewModel = loginViewModel
             )
@@ -246,11 +303,22 @@ fun CicadaNavigation() {
             )
         }
 
-        composable(route = "settings") {
+        composable("settings") {
+
+            var biometricEnabled by remember {
+                mutableStateOf(false)
+            }
+
+            LaunchedEffect(Unit) {
+                biometricEnabled =
+                    biometricRepository.isBiometricEnabledForCurrentUser()
+            }
+
             SettingScreen(
                 onBackClick = {
                     navController.popBackStack()
                 },
+
                 onLockVault = {
                     vaultSession.lock()
 
@@ -260,30 +328,83 @@ fun CicadaNavigation() {
                         }
                     }
                 },
-                onTestBiometric = {
-                    if (biometricAuthenticator.canAuthenticate()) {
-                        biometricAuthenticator.authenticate(
-                            onSuccess = {
-                                android.util.Log.d(
-                                    "BiometricTest",
-                                    "Biometric authentication succeeded"
-                                )
-                            },
-                            onFailure = { error ->
-                                android.util.Log.d(
-                                    "BiometricTest",
-                                    "Biometric authentication failed: $error"
-                                )
+
+                biometricEnabled = biometricEnabled,
+
+                onEnableBiometric = {
+
+                    val cipher =
+                        biometricRepository.prepareEnrollmentCipher()
+
+                    biometricAuthenticator.authenticate(
+                        cipher = cipher,
+
+                        onSuccess = { authenticatedCipher ->
+
+                            coroutineScope.launch {
+                                try {
+
+                                    biometricRepository.saveBiometricVaultKey(
+                                        authenticatedCipher
+                                    )
+
+                                    biometricEnabled = true
+
+                                    Log.d(
+                                        "Biometric",
+                                        "Biometric unlock enabled"
+                                    )
+
+                                } catch (e: Exception) {
+
+                                    Log.e(
+                                        "Biometric",
+                                        "Failed to enable biometric",
+                                        e
+                                    )
+                                }
                             }
-                        )
-                    } else {
-                        android.util.Log.d(
-                            "BiometricTest",
-                            "Biometric authentication unavailable"
-                        )
+                        },
+
+                        onFailure = { error ->
+
+                            Log.d(
+                                "Biometric",
+                                "Biometric enrollment cancelled/failed: $error"
+                            )
+
+                            // Don't change biometricEnabled.
+                            // It remains OFF.
+                        }
+                    )
+                },
+
+                onDisableBiometric = {
+
+                    coroutineScope.launch {
+                        try {
+
+                            biometricRepository.disableBiometric()
+
+                            biometricEnabled = false
+
+                            Log.d(
+                                "Biometric",
+                                "Biometric unlock disabled"
+                            )
+
+                        } catch (e: Exception) {
+
+                            Log.e(
+                                "Biometric",
+                                "Failed to disable biometric",
+                                e
+                            )
+                        }
                     }
                 }
             )
         }
+
     }
 }

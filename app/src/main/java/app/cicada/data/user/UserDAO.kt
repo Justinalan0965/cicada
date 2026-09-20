@@ -26,4 +26,7 @@ interface UserDAO {
 
     @Delete
     suspend fun deleteUser(vault: UserEntity)
+
+    @Query("UPDATE users SET encryptedBiometricKey = :encryptedBiometricKey WHERE id = :userId")
+    suspend fun updateBiometricKey(userId: String, encryptedBiometricKey: ByteArray?)
 }

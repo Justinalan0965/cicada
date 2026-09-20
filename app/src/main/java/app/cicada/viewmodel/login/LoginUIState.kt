@@ -7,5 +7,6 @@ data class LoginUIState(
     val passwordError: String? = null,
     val loginError: String? = null,
     val isLoading: Boolean = false,
-    val isLoginSuccess: Boolean = false
+    val isLoginSuccess: Boolean = false,
+    val biometricAvailable: Boolean = false
 )

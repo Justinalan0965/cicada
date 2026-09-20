@@ -17,5 +17,7 @@ data class UserEntity (
 
     val salt: ByteArray,
 
-    val encryptedKey: ByteArray
+    val encryptedKey: ByteArray,
+
+    val encryptedBiometricKey: ByteArray? = null
 )

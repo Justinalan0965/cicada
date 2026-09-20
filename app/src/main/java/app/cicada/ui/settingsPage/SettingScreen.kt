@@ -2,6 +2,7 @@ package app.cicada.ui.settingsPage
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +16,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,7 +27,9 @@ import androidx.compose.ui.unit.dp
 fun SettingScreen(
     onBackClick: () -> Unit,
     onLockVault: () -> Unit,
-    onTestBiometric: () -> Unit
+    biometricEnabled: Boolean,
+    onEnableBiometric: () -> Unit,
+    onDisableBiometric: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -83,11 +87,41 @@ fun SettingScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Button(
-                onClick = onTestBiometric,
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Test Biometric")
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "Biometric Unlock",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Text(
+                        text = if (biometricEnabled) {
+                            "Use your fingerprint or face to unlock Cicada"
+                        } else {
+                            "Unlock Cicada using biometrics"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Switch(
+                    checked = biometricEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled && !biometricEnabled) {
+                            onEnableBiometric()
+                        } else if (!enabled && biometricEnabled) {
+                            onDisableBiometric()
+                        }
+                    }
+                )
             }
         }
     }

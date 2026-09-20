@@ -40,6 +40,7 @@ import app.cicada.viewmodel.login.LoginViewModel
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onCreateAccount: () -> Unit,
+    onBiometricLogin: () -> Unit,
     loginViewModel: LoginViewModel = viewModel()
 ) {
 
@@ -98,7 +99,11 @@ fun LoginScreen(
             isError = uiState.usernameError != null,
             supportingText = {
                 uiState.usernameError?.let {
-                    Text(it)
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error
+
+                    )
                 }
             },
             shape = RoundedCornerShape(16.dp)
@@ -122,7 +127,10 @@ fun LoginScreen(
             isError = uiState.passwordError != null,
             supportingText = {
                 uiState.passwordError?.let {
-                    Text(it)
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             visualTransformation = if (passwordVisible) {
@@ -157,8 +165,10 @@ fun LoginScreen(
             Spacer(
                 modifier = Modifier.height(8.dp)
             )
-
-            Text(it)
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error
+            )
         }
 
         Spacer(
@@ -185,7 +195,17 @@ fun LoginScreen(
             onClick = onCreateAccount,
             enabled = !uiState.isLoading
         ) {
-            Text("Create Account")
+            Text(text = "Create Account",)
+        }
+
+        if (uiState.biometricAvailable) {
+
+            Button(
+                onClick = onBiometricLogin,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Unlock with Biometric")
+            }
         }
     }
 }

@@ -5,6 +5,7 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import javax.crypto.Cipher
 
 class BiometricAuthenticator(
     private val context: Context
@@ -22,7 +23,8 @@ class BiometricAuthenticator(
     }
 
     fun authenticate(
-        onSuccess: () -> Unit,
+        cipher: Cipher,
+        onSuccess: (Cipher) -> Unit,
         onFailure: (String) -> Unit
     ) {
         val activity = context as? FragmentActivity
@@ -42,7 +44,17 @@ class BiometricAuthenticator(
                 ) {
                     super.onAuthenticationSucceeded(result)
 
-                    onSuccess()
+                    val authenticatedCipher =
+                        result.cryptoObject?.cipher
+
+                    if (authenticatedCipher != null) {
+                        onSuccess(authenticatedCipher)
+                    } else {
+                        onFailure(
+                            "Biometric authentication succeeded, " +
+                                "but cryptographic operation was unavailable"
+                        )
+                    }
                 }
 
                 override fun onAuthenticationError(
@@ -60,8 +72,8 @@ class BiometricAuthenticator(
                 override fun onAuthenticationFailed() {
                     super.onAuthenticationFailed()
 
-                    // This means the biometric didn't match.
-                    // The prompt can remain open and allow another attempt.
+                    // Don't close the operation.
+                    // Android allows another biometric attempt.
                 }
             }
         )
@@ -72,6 +84,9 @@ class BiometricAuthenticator(
             .setNegativeButtonText("Cancel")
             .build()
 
-        biometricPrompt.authenticate(promptInfo)
+        biometricPrompt.authenticate(
+            promptInfo,
+            BiometricPrompt.CryptoObject(cipher)
+        )
     }
 }
