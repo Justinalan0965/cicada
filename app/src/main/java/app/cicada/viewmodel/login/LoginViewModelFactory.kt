@@ -2,12 +2,14 @@ package app.cicada.viewmodel.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import app.cicada.data.vault.VaultRepository
+import app.cicada.data.user.BiometricRepository
+import app.cicada.data.user.UserRepository
 import app.cicada.security.VaultSession
 
 class LoginViewModelFactory(
-    private val vaultRepository: VaultRepository,
-    private val vaultSession: VaultSession
+    private val userRepository: UserRepository,
+    private val vaultSession: VaultSession,
+    private val biometricRepository: BiometricRepository
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -16,8 +18,9 @@ class LoginViewModelFactory(
     ): T {
         if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
             return LoginViewModel(
-                vaultRepository = vaultRepository,
-                vaultSession = vaultSession
+                userRepository = userRepository,
+                vaultSession = vaultSession,
+                biometricRepository = biometricRepository
             ) as T
         }
 

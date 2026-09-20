@@ -5,8 +5,6 @@ import app.cicada.security.VaultSession
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
-import okhttp3.internal.UTC
-import org.bouncycastle.asn1.x500.style.RFC4519Style.l
 import java.util.UUID
 
 class CredentialRepository(
@@ -27,7 +25,7 @@ class CredentialRepository(
             notes = notes
         )
 
-        val vaultId = vaultSession.getVaultId()
+        val userId = vaultSession.getUserId()
         val vaultKey =  vaultSession.getKey()
 
         try {
@@ -43,7 +41,7 @@ class CredentialRepository(
 
                 val entity = CredentialEntity(
                     credential.id,
-                    vaultId,
+                    userId,
                     encryptedData,
                     System.currentTimeMillis()
                 )
@@ -58,10 +56,10 @@ class CredentialRepository(
     }
 
     fun getCredentials() : Flow<List<Credential>> {
-        val vaultId = vaultSession.getVaultId()
+        val userId = vaultSession.getUserId()
 
         return credentialDAO
-            .getAllCredentials(vaultId)
+            .getAllCredentials(userId)
             .map { entities ->
 
                 val vaultKey = vaultSession.getKey()
@@ -77,11 +75,11 @@ class CredentialRepository(
     }
 
     suspend fun getCredential(credentialId: String): Credential {
-        val vaultId = vaultSession.getVaultId()
+        val userId = vaultSession.getUserId()
         val vaultKey = vaultSession.getKey()
 
         try {
-            val entity = credentialDAO.getCredentialById(vaultId, credentialId)
+            val entity = credentialDAO.getCredentialById(userId, credentialId)
 
             return getAsCredential(entity, vaultKey)
         } finally {
@@ -112,11 +110,11 @@ class CredentialRepository(
         notes: String
     ) {
 
-        val vaultId = vaultSession.getVaultId()
+        val userId = vaultSession.getUserId()
         val vaultKey = vaultSession.getKey()
 
         try {
-            val oldEntity = credentialDAO.getCredentialById(vaultId, credentialId)
+            val oldEntity = credentialDAO.getCredentialById(userId, credentialId)
 
             val credential = Credential(
                 id = credentialId,
@@ -135,7 +133,7 @@ class CredentialRepository(
 
                 val updateEntity = CredentialEntity(
                     id = oldEntity.id,
-                    vaultId = oldEntity.vaultId,
+                    userId = oldEntity.userId,
                     encryptedData = encryptedData,
                     createdTime = oldEntity.createdTime
                 )
@@ -150,8 +148,8 @@ class CredentialRepository(
     }
 
     suspend fun deleteCredential(credentialId: String) {
-        val vaultId = vaultSession.getVaultId()
-        val credentialEntity = credentialDAO.getCredentialById(vaultId, credentialId)?: return
+        val userId = vaultSession.getUserId()
+        val credentialEntity = credentialDAO.getCredentialById(userId, credentialId)
 
         credentialDAO.deleteCredential(credentialEntity)
     }

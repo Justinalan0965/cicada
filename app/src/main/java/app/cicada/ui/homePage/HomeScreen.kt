@@ -79,7 +79,8 @@ fun HomeScreen(
     onNavigateToAdd: () -> Unit,
     currentRoute: String?,
     onNavigateBottomBar: (String) -> Unit,
-    onClick: (String) -> Unit
+    onClick: (String) -> Unit,
+    onLock: () -> Unit
 ) {
 
     val uiState by homeViewModel.uiState.collectAsState()

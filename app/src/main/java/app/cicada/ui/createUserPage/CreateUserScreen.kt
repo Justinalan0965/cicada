@@ -1,4 +1,4 @@
-package app.cicada.ui.createVaultPage
+package app.cicada.ui.createUserPage
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,16 +31,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import app.cicada.viewmodel.createVault.CreateVaultViewModel
-import org.bouncycastle.asn1.x500.style.RFC4519Style.c
+import app.cicada.viewmodel.createUser.CreateUserViewModel
 
 @Composable
-fun CreateVaultScreen(
-    onVaultCreated: () -> Unit,
-    createVaultViewModel: CreateVaultViewModel
+fun CreateUserScreen(
+    onUserCreated: () -> Unit,
+    createUserViewModel: CreateUserViewModel
 ) {
 
-    val uiState by createVaultViewModel.uiState.collectAsState()
+    val uiState by createUserViewModel.uiState.collectAsState()
 
     var passwordVisible by remember {
         mutableStateOf(false)
@@ -51,7 +51,7 @@ fun CreateVaultScreen(
 
     LaunchedEffect(uiState.isCreated) {
         if (uiState.isCreated) {
-            onVaultCreated()
+            onUserCreated()
         }
     }
 
@@ -63,28 +63,31 @@ fun CreateVaultScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Create Vault",
+            text = "Create Account",
             fontStyle = FontStyle.Italic,
             textAlign = TextAlign.Center
         )
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // Vault name
+        // User name
         OutlinedTextField(
-            value = uiState.vaultName,
+            value = uiState.username,
             onValueChange = {
-                createVaultViewModel.updateVaultName(it)
+                createUserViewModel.updateUsername(it)
             },
             modifier = Modifier.fillMaxWidth(),
             label = {
-                Text("Vault name")
+                Text("Username")
             },
             singleLine = true,
-            isError = uiState.vaultNameError != null,
+            isError = uiState.usernameError != null,
             supportingText = {
-                uiState.vaultNameError?.let{
-                    Text(it)
+                uiState.usernameError?.let{
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             shape = RoundedCornerShape(16.dp)
@@ -94,7 +97,7 @@ fun CreateVaultScreen(
         OutlinedTextField(
             value = uiState.password,
             onValueChange = {
-                createVaultViewModel.updatePassword(it)
+                createUserViewModel.updatePassword(it)
             },
             modifier = Modifier.fillMaxWidth(),
             label = {
@@ -104,7 +107,10 @@ fun CreateVaultScreen(
             isError = uiState.passwordError != null,
             supportingText = {
                 uiState.passwordError?.let {
-                    Text(it)
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             visualTransformation = if (passwordVisible) {
@@ -139,7 +145,7 @@ fun CreateVaultScreen(
         OutlinedTextField(
             value = uiState.confirmPassword,
             onValueChange = {
-                createVaultViewModel.updateConfirmPassword(it)
+                createUserViewModel.updateConfirmPassword(it)
             },
             modifier = Modifier.fillMaxWidth(),
             label = {
@@ -149,7 +155,10 @@ fun CreateVaultScreen(
             isError = uiState.confirmPasswordError != null,
             supportingText = {
                 uiState.confirmPasswordError?.let {
-                    Text(it)
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             visualTransformation = if (confirmPasswordVisible) {
@@ -184,7 +193,7 @@ fun CreateVaultScreen(
 
         Button(
             onClick = {
-                createVaultViewModel.createVault()
+                createUserViewModel.createUser()
             },
             enabled = !uiState.isCreating,
             modifier = Modifier.fillMaxWidth()
@@ -193,7 +202,7 @@ fun CreateVaultScreen(
                 if (uiState.isCreating) {
                     "Creating"
                 } else {
-                    "Create Vault"
+                    "Create Account"
                 }
             )
         }

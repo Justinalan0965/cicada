@@ -88,4 +88,10 @@ dependencies {
 
 //    Coil
     implementation(libs.coil.compose)
+
+//    LifeCycle
+    implementation(libs.androidx.lifecycle.runtime.compose)
+
+//    Biometric
+    implementation(libs.androidx.biometric)
 }

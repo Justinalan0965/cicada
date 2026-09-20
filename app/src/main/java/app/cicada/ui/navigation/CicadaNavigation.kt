@@ -1,14 +1,21 @@
 package app.cicada.ui.navigation
 
+import android.util.Log
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -16,26 +23,30 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.cicada.data.credential.CredentialRepository
 import app.cicada.data.database.CicadaDB
-import app.cicada.data.vault.VaultRepository
+import app.cicada.data.user.BiometricRepository
+import app.cicada.data.user.UserRepository
+import app.cicada.security.BiometricAuthenticator
+import app.cicada.security.BiometricKeyManager
 import app.cicada.security.CicadaClipboardManager
 import app.cicada.security.CryptoManager
 import app.cicada.security.VaultSession
 import app.cicada.ui.addCredentialPage.AddCredentialScreen
-import app.cicada.ui.createVaultPage.CreateVaultScreen
+import app.cicada.ui.createUserPage.CreateUserScreen
 import app.cicada.ui.homePage.HomeScreen
 import app.cicada.ui.loginPage.LoginScreen
 import app.cicada.ui.settingsPage.SettingScreen
 import app.cicada.ui.viewCredentialPage.ViewCredentialScreen
 import app.cicada.viewmodel.addCredential.AddCredentialViewModel
 import app.cicada.viewmodel.addCredential.AddCredentialViewModelFactory
-import app.cicada.viewmodel.createVault.CreateVaultViewModel
-import app.cicada.viewmodel.createVault.CreateVaultViewModelFactory
+import app.cicada.viewmodel.createUser.CreateUserViewModel
+import app.cicada.viewmodel.createUser.CreateUserViewModelFactory
 import app.cicada.viewmodel.home.HomeViewModel
 import app.cicada.viewmodel.home.HomeViewModelFactory
 import app.cicada.viewmodel.login.LoginViewModel
 import app.cicada.viewmodel.login.LoginViewModelFactory
 import app.cicada.viewmodel.viewCredential.ViewCredentialViewModel
 import app.cicada.viewmodel.viewCredential.ViewCredentialViewModelFactory
+import kotlinx.coroutines.launch
 
 @Composable
 fun CicadaNavigation() {
@@ -43,6 +54,12 @@ fun CicadaNavigation() {
     val navController = rememberNavController()
 
     val context = LocalContext.current
+
+    val coroutineScope = rememberCoroutineScope()
+
+    val biometricAuthenticator = remember {
+        BiometricAuthenticator(context)
+    }
 
     val clipboardManager = remember {
         CicadaClipboardManager(context)
@@ -56,15 +73,27 @@ fun CicadaNavigation() {
         CryptoManager()
     }
 
-    val vaultRepository = remember {
-        VaultRepository(
-            database.vaultDAO(),
+    val userRepository = remember {
+        UserRepository(
+            database.userDAO(),
             cryptoManager = cryptoManager
         )
     }
 
     val vaultSession = remember {
         VaultSession()
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (vaultSession.shouldAutoLock()) {
+            vaultSession.lock()
+
+            navController.navigate("login") {
+                popUpTo("home") {
+                    inclusive = true
+                }
+            }
+        }
     }
 
     val credentialRepository = remember {
@@ -75,25 +104,32 @@ fun CicadaNavigation() {
         )
     }
 
+    val biometricRepository = remember {
+        BiometricRepository(
+            userDAO = database.userDAO(),
+            vaultSession = vaultSession
+        )
+    }
+
     NavHost(
         navController = navController,
         startDestination = "login"
     ) {
 
-        composable("createVault") {
-            val createVaultViewModel : CreateVaultViewModel = viewModel(
-                factory = CreateVaultViewModelFactory(vaultRepository)
+        composable("createUser") {
+            val createUserViewModel : CreateUserViewModel = viewModel(
+                factory = CreateUserViewModelFactory(userRepository)
             )
 
-            CreateVaultScreen(
-                onVaultCreated = {
+            CreateUserScreen(
+                onUserCreated = {
                     navController.navigate("login") {
-                        popUpTo("createVault") {
+                        popUpTo("createUser") {
                             inclusive = true
                         }
                     }
                 },
-                createVaultViewModel = createVaultViewModel
+                createUserViewModel = createUserViewModel
             )
         }
 
@@ -102,8 +138,9 @@ fun CicadaNavigation() {
             val loginViewModel: LoginViewModel =
                 viewModel(
                     factory = LoginViewModelFactory(
-                        vaultRepository = vaultRepository,
-                        vaultSession = vaultSession
+                        userRepository = userRepository,
+                        vaultSession = vaultSession,
+                        biometricRepository = biometricRepository
                     )
                 )
 
@@ -116,8 +153,47 @@ fun CicadaNavigation() {
                     }
                 },
 
-                onCreateVault = {
-                    navController.navigate("createVault")
+                onCreateAccount = {
+                    navController.navigate("createUser")
+                },
+                onBiometricLogin = {
+
+                    val username =
+                        loginViewModel.uiState.value.username
+
+                    loginViewModel.biometricLogin(
+                        username = username,
+
+                        onAuthenticate = { cipher ->
+
+                            biometricAuthenticator.authenticate(
+                                cipher = cipher,
+
+                                onSuccess = { authenticatedCipher ->
+
+                                    loginViewModel.completeBiometricLogin(
+                                        authenticatedCipher
+                                    )
+                                },
+
+                                onFailure = { error ->
+
+                                    android.util.Log.d(
+                                        "BiometricLogin",
+                                        "Authentication failed: $error"
+                                    )
+                                }
+                            )
+                        },
+
+                        onUnavailable = {
+
+                            android.util.Log.d(
+                                "BiometricLogin",
+                                "Biometric unlock unavailable"
+                            )
+                        }
+                    )
                 },
                 loginViewModel = loginViewModel
             )
@@ -147,7 +223,17 @@ fun CicadaNavigation() {
                         restoreState = true
                     }
                 },
-                onClick = { credentialId -> navController.navigate("viewCredential/${credentialId}") }
+                onClick = { credentialId -> navController.navigate("viewCredential/${credentialId}") },
+
+                onLock = {
+                    vaultSession.lock()
+
+                    navController.navigate("login") {
+                        popUpTo("home") {
+                            inclusive = true
+                        }
+                    }
+                }
             )
         }
 
@@ -217,12 +303,108 @@ fun CicadaNavigation() {
             )
         }
 
-        composable(route = "settings") {
+        composable("settings") {
+
+            var biometricEnabled by remember {
+                mutableStateOf(false)
+            }
+
+            LaunchedEffect(Unit) {
+                biometricEnabled =
+                    biometricRepository.isBiometricEnabledForCurrentUser()
+            }
+
             SettingScreen(
                 onBackClick = {
                     navController.popBackStack()
+                },
+
+                onLockVault = {
+                    vaultSession.lock()
+
+                    navController.navigate("login") {
+                        popUpTo("home") {
+                            inclusive = true
+                        }
+                    }
+                },
+
+                biometricEnabled = biometricEnabled,
+
+                onEnableBiometric = {
+
+                    val cipher =
+                        biometricRepository.prepareEnrollmentCipher()
+
+                    biometricAuthenticator.authenticate(
+                        cipher = cipher,
+
+                        onSuccess = { authenticatedCipher ->
+
+                            coroutineScope.launch {
+                                try {
+
+                                    biometricRepository.saveBiometricVaultKey(
+                                        authenticatedCipher
+                                    )
+
+                                    biometricEnabled = true
+
+                                    Log.d(
+                                        "Biometric",
+                                        "Biometric unlock enabled"
+                                    )
+
+                                } catch (e: Exception) {
+
+                                    Log.e(
+                                        "Biometric",
+                                        "Failed to enable biometric",
+                                        e
+                                    )
+                                }
+                            }
+                        },
+
+                        onFailure = { error ->
+
+                            Log.d(
+                                "Biometric",
+                                "Biometric enrollment cancelled/failed: $error"
+                            )
+
+                            // Don't change biometricEnabled.
+                            // It remains OFF.
+                        }
+                    )
+                },
+
+                onDisableBiometric = {
+
+                    coroutineScope.launch {
+                        try {
+
+                            biometricRepository.disableBiometric()
+
+                            biometricEnabled = false
+
+                            Log.d(
+                                "Biometric",
+                                "Biometric unlock disabled"
+                            )
+
+                        } catch (e: Exception) {
+
+                            Log.e(
+                                "Biometric",
+                                "Failed to disable biometric",
+                                e
+                            )
+                        }
+                    }
                 }
             )
         }
+
     }
 }

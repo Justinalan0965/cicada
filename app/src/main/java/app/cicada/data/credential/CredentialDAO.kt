@@ -10,11 +10,11 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CredentialDAO {
 
-    @Query("SELECT * FROM credentials WHERE vaultId = :vaultId ORDER BY createdTime")
-    fun getAllCredentials(vaultId: String): Flow<List<CredentialEntity>>
+    @Query("SELECT * FROM credentials WHERE userId = :userId ORDER BY createdTime")
+    fun getAllCredentials(userId: String): Flow<List<CredentialEntity>>
 
-    @Query("SELECT * FROM credentials WHERE vaultId = :vaultId and id = :credentialId LIMIT 1")
-    suspend fun getCredentialById(vaultId: String, credentialId: String): CredentialEntity
+    @Query("SELECT * FROM credentials WHERE userId = :userId and id = :credentialId LIMIT 1")
+    suspend fun getCredentialById(userId: String, credentialId: String): CredentialEntity
 
     @Insert
     suspend fun addCredential(credential: CredentialEntity)
