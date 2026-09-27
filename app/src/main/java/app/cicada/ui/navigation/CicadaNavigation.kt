@@ -23,10 +23,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.cicada.data.credential.CredentialRepository
 import app.cicada.data.database.CicadaDB
+import app.cicada.data.preferences.UserPreferencesRepository
 import app.cicada.data.user.BiometricRepository
 import app.cicada.data.user.UserRepository
 import app.cicada.security.BiometricAuthenticator
-import app.cicada.security.BiometricKeyManager
 import app.cicada.security.CicadaClipboardManager
 import app.cicada.security.CryptoManager
 import app.cicada.security.VaultSession
@@ -80,6 +80,10 @@ fun CicadaNavigation() {
         )
     }
 
+    val userPreferencesRepository = remember {
+        UserPreferencesRepository(context)
+    }
+
     val vaultSession = remember {
         VaultSession()
     }
@@ -122,6 +126,9 @@ fun CicadaNavigation() {
             )
 
             CreateUserScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                },
                 onUserCreated = {
                     navController.navigate("login") {
                         popUpTo("createUser") {
@@ -140,11 +147,13 @@ fun CicadaNavigation() {
                     factory = LoginViewModelFactory(
                         userRepository = userRepository,
                         vaultSession = vaultSession,
-                        biometricRepository = biometricRepository
+                        biometricRepository = biometricRepository,
+                        userPreferencesRepository = userPreferencesRepository
                     )
                 )
 
-            LoginScreen (
+            LoginScreen(
+
                 onLoginSuccess = {
                     navController.navigate("home") {
                         popUpTo("login") {
@@ -156,45 +165,35 @@ fun CicadaNavigation() {
                 onCreateAccount = {
                     navController.navigate("createUser")
                 },
-                onBiometricLogin = {
 
-                    val username =
-                        loginViewModel.uiState.value.username
+                onBiometricLogin = { cipher, requestId ->
 
-                    loginViewModel.biometricLogin(
-                        username = username,
+                    biometricAuthenticator.authenticate(
 
-                        onAuthenticate = { cipher ->
+                        cipher = cipher,
 
-                            biometricAuthenticator.authenticate(
-                                cipher = cipher,
+                        onSuccess = { authenticatedCipher ->
 
-                                onSuccess = { authenticatedCipher ->
-
-                                    loginViewModel.completeBiometricLogin(
-                                        authenticatedCipher
-                                    )
-                                },
-
-                                onFailure = { error ->
-
-                                    android.util.Log.d(
-                                        "BiometricLogin",
-                                        "Authentication failed: $error"
-                                    )
-                                }
+                            loginViewModel.completeBiometricLogin(
+                                authenticatedCipher,
+                                requestId
                             )
                         },
 
-                        onUnavailable = {
+                        onFailure = { error ->
 
-                            android.util.Log.d(
+                            loginViewModel.cancelBiometricLogin()
+
+                            Log.d(
                                 "BiometricLogin",
-                                "Biometric unlock unavailable"
+                                "Authentication failed: $error"
                             )
                         }
                     )
                 },
+
+                biometricAuthenticator = biometricAuthenticator,
+
                 loginViewModel = loginViewModel
             )
         }
@@ -367,14 +366,19 @@ fun CicadaNavigation() {
                         },
 
                         onFailure = { error ->
-
+                            try {
+                                biometricRepository.cancelEnrollment()
+                            } catch (e: Exception) {
+                                Log.e(
+                                    "Biometric",
+                                    "Failed to clean up biometric enrollment",
+                                    e
+                                )
+                            }
                             Log.d(
                                 "Biometric",
                                 "Biometric enrollment cancelled/failed: $error"
                             )
-
-                            // Don't change biometricEnabled.
-                            // It remains OFF.
                         }
                     )
                 },

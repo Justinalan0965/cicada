@@ -11,6 +11,10 @@ class UserRepository(
     private val cryptoManager: CryptoManager
 ) {
 
+    suspend fun getAllUsers(): List<UserEntity> {
+        return userDAO.getAllUsers()
+    }
+
     suspend fun usernameExists(username : String) : Boolean {
         val normalizedUsername = normalizeUsername(username)
         return userDAO.usernameExists(normalizedUsername)
@@ -80,5 +84,15 @@ class UserRepository(
     }
     fun normalizeUsername(username : String) : String {
         return username.trim().lowercase()
+    }
+
+    suspend fun getUserById(userId: String): UserEntity? {
+        return userDAO.getUserById(userId)
+    }
+
+    suspend fun getUserByUsername(username: String): UserEntity? {
+        return userDAO.getUserByUsername(
+            normalizeUsername(username)
+        )
     }
 }

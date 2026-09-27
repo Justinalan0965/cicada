@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 interface UserDAO {
 
     @Query("SELECT * FROM users ORDER BY username")
-    fun getAllUsers(): Flow<List<UserEntity>>
+    suspend fun getAllUsers(): List<UserEntity>
 
     @Query("SELECT EXISTS(SELECT 1 FROM users WHERE username = :username)")
     suspend fun usernameExists(username: String): Boolean

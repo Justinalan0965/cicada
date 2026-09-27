@@ -8,5 +8,9 @@ data class LoginUIState(
     val loginError: String? = null,
     val isLoading: Boolean = false,
     val isLoginSuccess: Boolean = false,
-    val biometricAvailable: Boolean = false
+    val biometricAvailable: Boolean = false,
+    val rememberedUsername: String? = null,
+    val rememberedUserId: String? = null,
+    val hasAccounts: Boolean = false,
+    val selectedUserId: String? = null
 )
