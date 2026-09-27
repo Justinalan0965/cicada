@@ -65,12 +65,8 @@ class BiometricRepository(
         userId: String,
         encryptedVaultKey: ByteArray
     ): Cipher {
-
-        val keyManager = BiometricKeyManager(userId)
-
-        return keyManager.createDecryptCipher(
-            encryptedVaultKey
-        )
+        return BiometricKeyManager(userId)
+            .createDecryptCipher(encryptedVaultKey)
     }
 
     fun decryptVaultKey(
@@ -119,6 +115,32 @@ class BiometricRepository(
     fun cancelEnrollment() {
         val userId = vaultSession.getUserId()
         BiometricKeyManager(userId).deleteKey()
+    }
+
+    suspend fun invalidateBiometric(userId: String) {
+        userDAO.updateBiometricKey(
+            userId = userId,
+            encryptedBiometricKey = null
+        )
+
+        BiometricKeyManager(userId).deleteKey()
+    }
+
+    suspend fun prepareBiometricUnlockByUserId(
+        userId: String
+    ): BiometricUnlockData? {
+
+        val user = userDAO.getUserById(userId)
+            ?: return null
+
+        val encryptedVaultKey =
+            user.encryptedBiometricKey
+                ?: return null
+
+        return BiometricUnlockData(
+            userId = user.id,
+            encryptedVaultKey = encryptedVaultKey
+        )
     }
 }
 

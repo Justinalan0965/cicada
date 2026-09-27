@@ -42,8 +42,8 @@ class CredentialRepositoryTest {
         val vaultKey = cryptoManager.generateVaultKey()
 
         vaultSession.unlock(
-            vaultId = "test-vault",
-            key = vaultKey
+            userId = "test-vault",
+            key = vaultKey,
         )
 
         vaultKey.fill(0)

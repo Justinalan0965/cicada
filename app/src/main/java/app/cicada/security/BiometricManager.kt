@@ -1,7 +1,9 @@
 package app.cicada.security
 
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
+import app.cicada.security.exception.BiometricKeyInvalidatedException
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -70,39 +72,33 @@ class BiometricKeyManager(
     }
 
     fun createEncryptCipher(): Cipher {
-        return Cipher.getInstance(
-            "AES/GCM/NoPadding"
-        ).apply {
-            init(
-                Cipher.ENCRYPT_MODE,
-                getKey()
-            )
+        return try {
+            Cipher.getInstance("AES/GCM/NoPadding").apply {
+                init(
+                    Cipher.ENCRYPT_MODE,
+                    getKey()
+                )
+            }
+        } catch (e: KeyPermanentlyInvalidatedException) {
+            throw BiometricKeyInvalidatedException(e)
         }
     }
 
-    fun createDecryptCipher(
-        encryptedData: ByteArray
-    ): Cipher {
-        require(encryptedData.size > GCM_IV_SIZE) {
-            "Invalid encrypted data"
-        }
+    fun createDecryptCipher(encryptedData: ByteArray): Cipher {
+        require(encryptedData.size > GCM_IV_SIZE)
 
-        val iv = encryptedData.copyOfRange(
-            0,
-            GCM_IV_SIZE
-        )
+        val iv = encryptedData.copyOfRange(0, GCM_IV_SIZE)
 
-        return Cipher.getInstance(
-            "AES/GCM/NoPadding"
-        ).apply {
-            init(
-                Cipher.DECRYPT_MODE,
-                getKey(),
-                GCMParameterSpec(
-                    GCM_TAG_SIZE,
-                    iv
+        return try {
+            Cipher.getInstance("AES/GCM/NoPadding").apply {
+                init(
+                    Cipher.DECRYPT_MODE,
+                    getKey(),
+                    GCMParameterSpec(GCM_TAG_SIZE, iv)
                 )
-            )
+            }
+        } catch (e: KeyPermanentlyInvalidatedException) {
+            throw BiometricKeyInvalidatedException(e)
         }
     }
 

@@ -94,4 +94,7 @@ dependencies {
 
 //    Biometric
     implementation(libs.androidx.biometric)
+
+//    Datastore
+    implementation(libs.androidx.datastore.preferences)
 }

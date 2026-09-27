@@ -3,198 +3,348 @@ package app.cicada.viewmodel.login
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.cicada.data.preferences.UserPreferencesRepository
 import app.cicada.data.user.BiometricRepository
+import app.cicada.data.user.UserEntity
 import app.cicada.data.user.UserRepository
 import app.cicada.security.VaultSession
+import app.cicada.security.exception.BiometricKeyInvalidatedException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.crypto.Cipher
 
 class LoginViewModel(
     private val userRepository: UserRepository,
     private val vaultSession: VaultSession,
-    private val biometricRepository: BiometricRepository
+    private val biometricRepository: BiometricRepository,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(LoginUIState())
 
+    private val _uiState = MutableStateFlow(LoginUIState())
     val uiState: StateFlow<LoginUIState> = _uiState.asStateFlow()
+
+    private val _rememberedUser = MutableStateFlow<UserEntity?>(null)
+    val rememberedUser: StateFlow<UserEntity?> = _rememberedUser.asStateFlow()
+
+    private val _availableUsers = MutableStateFlow<List<UserEntity>>(emptyList())
+    val availableUsers: StateFlow<List<UserEntity>> = _availableUsers.asStateFlow()
 
     private var biometricUserId: String? = null
     private var biometricEncryptedVaultKey: ByteArray? = null
 
+    private var biometricRequestId = 0L
+
+    private var autoBiometricAttempted = false
+
     fun updateUsername(username: String) {
-        _uiState.value = _uiState.value.copy(
-            username = username,
-            usernameError = null,
-            loginError = null,
-            biometricAvailable = false
-        )
+        _uiState.update {
+            it.copy(
+                username = username,
+                usernameError = null,
+                loginError = null
+            )
+        }
 
         checkBiometricAvailability(username)
     }
 
     fun updatePassword(password: String) {
-        _uiState.value = _uiState.value.copy(
-            password = password,
-            passwordError = null,
-            loginError = null
-        )
+        _uiState.update {
+            it.copy(
+                password = password,
+                passwordError = null,
+                loginError = null
+            )
+        }
     }
 
     fun login() {
 
         val currentState = _uiState.value
 
+        val username = currentState.username.trim()
+        val password = currentState.password
+
         var hasError = false
 
-        if (currentState.username.isBlank()) {
-            _uiState.value = _uiState.value.copy(
-                usernameError = "Username required"
-            )
+        if (username.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    usernameError = "Username is required",
+                    loginError = null
+                )
+            }
             hasError = true
+        } else {
+            _uiState.update {
+                it.copy(usernameError = null)
+            }
         }
 
-        if (currentState.password.isBlank()) {
-            _uiState.value = _uiState.value.copy(
-                passwordError = "Password required"
-            )
+        if (password.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    passwordError = "Password is required",
+                    loginError = null
+                )
+            }
             hasError = true
+        } else {
+            _uiState.update {
+                it.copy(passwordError = null)
+            }
         }
 
         if (hasError) {
             return
         }
 
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
+        _uiState.update {
+            it.copy(
                 isLoading = true,
                 loginError = null
             )
+        }
 
-            val password = currentState.password.toCharArray()
+        viewModelScope.launch {
+
+            val passwordChars = password.toCharArray()
 
             try {
 
                 val result = userRepository.unlockUser(
-                    username = currentState.username,
-                    password = password
+                    username = username,
+                    password = passwordChars
                 )
 
-                if (result != null) {
+                if (result == null) {
 
-                    try {
-                        vaultSession.unlock(
-                            result.userId,
-                            result.vaultKey
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            loginError = "Invalid username or password",
+                            isLoginSuccess = false
                         )
-                    } finally {
-                        // VaultSession made its own copy
-                        result.vaultKey.fill(0)
                     }
 
-                    _uiState.value = _uiState.value.copy(
+                    return@launch
+                }
+
+
+                vaultSession.unlock(
+                    userId = result.userId,
+                    key = result.vaultKey
+                )
+
+                userPreferencesRepository.setLastUserId(
+                    result.userId
+                )
+
+                _uiState.update {
+                    it.copy(
                         isLoading = false,
                         loginError = null,
                         isLoginSuccess = true
-                    )
-
-                } else {
-
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        loginError = "Invalid username or password",
-                        isLoginSuccess = false
                     )
                 }
 
             } catch (e: Exception) {
 
-                Log.d("LoginPage", "Failed to login:", e)
-
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    loginError = "Login failed",
-                    isLoginSuccess = false
+                Log.e(
+                    "Login",
+                    "Login failed",
+                    e
                 )
 
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        loginError = "Login failed",
+                        isLoginSuccess = false
+                    )
+                }
+
             } finally {
-                password.fill('\u0000')
+                passwordChars.fill('\u0000')
             }
         }
     }
 
     fun biometricLogin(
         username: String,
-        onAuthenticate: (Cipher) -> Unit,
+        onAuthenticate: (Cipher, Long) -> Unit,
         onUnavailable: () -> Unit
     ) {
+
         val normalizedUsername = username.trim().lowercase()
 
         if (normalizedUsername.isBlank()) {
-            _uiState.value = _uiState.value.copy(
-                usernameError = "Username required"
-            )
+
+            _uiState.update {
+                it.copy(
+                    usernameError = "Username is required",
+                    loginError = null
+                )
+            }
+
             return
         }
 
         viewModelScope.launch {
+
+            val user = userRepository.getUserByUsername(
+                normalizedUsername
+            )
+
+            if (user == null) {
+
+                _uiState.update {
+                    it.copy(
+                        loginError = "User not found"
+                    )
+                }
+
+                onUnavailable()
+                return@launch
+            }
+
+            biometricLoginForUserId(
+                userId = user.id,
+                onAuthenticate = onAuthenticate,
+                onUnavailable = onUnavailable
+            )
+        }
+    }
+
+    fun biometricLoginForRememberedUser(
+        onAuthenticate: (Cipher, Long) -> Unit,
+        onUnavailable: () -> Unit
+    ) {
+
+        val userId = _uiState.value.rememberedUserId
+
+        if (userId == null) {
+            onUnavailable()
+            return
+        }
+
+        biometricLoginForUserId(
+            userId = userId,
+            onAuthenticate = onAuthenticate,
+            onUnavailable = onUnavailable
+        )
+    }
+
+    private fun biometricLoginForUserId(
+        userId: String,
+        onAuthenticate: (Cipher, Long) -> Unit,
+        onUnavailable: () -> Unit
+    ) {
+
+        biometricRequestId++
+
+        val currentRequestId = biometricRequestId
+
+        viewModelScope.launch {
+
             try {
+
                 val biometricData =
-                    biometricRepository.prepareBiometricUnlock(
-                        normalizedUsername
+                    biometricRepository.prepareBiometricUnlockByUserId(
+                        userId
                     )
 
                 if (biometricData == null) {
+
+                    clearBiometricState()
+
                     onUnavailable()
+
                     return@launch
                 }
 
-                // Keep these only for the duration of the
-                // biometric authentication operation.
                 biometricUserId = biometricData.userId
-                biometricEncryptedVaultKey =
-                    biometricData.encryptedVaultKey.copyOf()
 
-                val cipher =
-                    biometricRepository.prepareDecryptionCipher(
-                        userId = biometricData.userId,
-                        encryptedVaultKey =
-                            biometricData.encryptedVaultKey
+                biometricEncryptedVaultKey = biometricData.encryptedVaultKey.copyOf()
+
+                val cipher = biometricRepository.prepareDecryptionCipher(
+                        biometricData.userId,
+                        biometricData.encryptedVaultKey
                     )
 
-                onAuthenticate(cipher)
+                onAuthenticate(
+                    cipher,
+                    currentRequestId
+                )
+
+            } catch (e: BiometricKeyInvalidatedException) {
+                Log.d(
+                    "BiometricLogin",
+                    "Biometric key invalidated",
+                    e
+                )
+
+                clearBiometricState()
+
+                try {
+                    biometricRepository.invalidateBiometric(userId)
+                } catch (cleanupException: Exception) {
+
+                    Log.e(
+                        "BiometricLogin",
+                        "Failed to invalidate biometric data",
+                        cleanupException
+                    )
+                }
+
+                _uiState.update {
+                    it.copy(
+                        biometricAvailable = false,
+                        loginError = "Biometric unlock is no longer available"
+                    )
+                }
+
+                onUnavailable()
 
             } catch (e: Exception) {
-                android.util.Log.e(
+
+                Log.e(
                     "BiometricLogin",
                     "Failed to prepare biometric login",
                     e
                 )
 
                 clearBiometricState()
+
                 onUnavailable()
             }
         }
     }
 
     fun completeBiometricLogin(
-        authenticatedCipher: Cipher
+        authenticatedCipher: Cipher,
+        requestId: Long
     ) {
-        val userId = biometricUserId
-        val encryptedVaultKey = biometricEncryptedVaultKey
 
-        if (userId == null || encryptedVaultKey == null) {
-            _uiState.value = _uiState.value.copy(
-                loginError = "Biometric unlock session expired",
-                isLoginSuccess = false
-            )
+        if (requestId != biometricRequestId) {
             return
         }
 
+        val userId = biometricUserId
+            ?: return
+
+        val encryptedVaultKey =
+            biometricEncryptedVaultKey
+                ?: return
+
         viewModelScope.launch {
+
             try {
+
                 val vaultKey =
                     biometricRepository.decryptVaultKey(
                         userId = userId,
@@ -202,80 +352,227 @@ class LoginViewModel(
                         authenticatedCipher = authenticatedCipher
                     )
 
+                if (vaultSession.isUnlocked) {
+
+                    vaultKey.fill(0)
+
+                    clearBiometricState()
+
+                    return@launch
+                }
+
                 try {
+
                     vaultSession.unlock(
                         userId = userId,
                         key = vaultKey
                     )
 
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        loginError = null,
-                        isLoginSuccess = true
+                    userPreferencesRepository.setLastUserId(
+                        userId
                     )
+
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            loginError = null,
+                            isLoginSuccess = true
+                        )
+                    }
 
                 } finally {
                     vaultKey.fill(0)
                 }
 
             } catch (e: Exception) {
-                android.util.Log.e(
+
+                Log.e(
                     "BiometricLogin",
-                    "Failed to decrypt vault key",
+                    "Biometric unlock failed",
                     e
                 )
 
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    loginError = "Biometric unlock failed",
-                    isLoginSuccess = false
-                )
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        loginError = "Biometric unlock failed",
+                        isLoginSuccess = false
+                    )
+                }
+
             } finally {
+
                 clearBiometricState()
             }
         }
     }
 
-    private fun checkBiometricAvailability(
+    fun cancelBiometricLogin() {
+
+        biometricRequestId++
+
+        clearBiometricState()
+    }
+
+    fun checkBiometricAvailability(
         username: String
     ) {
-        val normalizedUsername = username.trim()
+
+        val normalizedUsername =
+            username.trim().lowercase()
 
         if (normalizedUsername.isBlank()) {
+
+            _uiState.update {
+                it.copy(
+                    biometricAvailable = false
+                )
+            }
+
             return
         }
 
         viewModelScope.launch {
+
             try {
-                val enabled =
+
+                val available =
                     biometricRepository.isBiometricEnabled(
                         normalizedUsername
                     )
 
-                // Make sure the username hasn't changed while
-                // the database query was running.
-                if (
-                    _uiState.value.username.trim()
-                        .equals(normalizedUsername, ignoreCase = true)
-                ) {
-                    _uiState.value =
-                        _uiState.value.copy(
-                            biometricAvailable = enabled
-                        )
+                _uiState.update {
+                    it.copy(
+                        biometricAvailable = available
+                    )
                 }
 
             } catch (e: Exception) {
-                android.util.Log.e(
+
+                Log.e(
                     "BiometricLogin",
                     "Failed to check biometric availability",
                     e
+                )
+
+                _uiState.update {
+                    it.copy(
+                        biometricAvailable = false
+                    )
+                }
+            }
+        }
+    }
+
+    fun loadRememberedUser() {
+        viewModelScope.launch {
+
+            val users = userRepository.getAllUsers()
+
+            _availableUsers.value = users
+
+            if (users.isEmpty()) {
+                _rememberedUser.value = null
+
+                _uiState.update {
+                    it.copy(
+                        hasAccounts = false,
+                        rememberedUsername = null,
+                        rememberedUserId = null,
+                        biometricAvailable = false,
+                        username = ""
+                    )
+                }
+
+                return@launch
+            }
+
+            _uiState.update {
+                it.copy(hasAccounts = true)
+            }
+
+            val userId = userPreferencesRepository.lastUserId.first()
+
+            if (userId == null) {
+                _rememberedUser.value = null
+
+                _uiState.update {
+                    it.copy(
+                        rememberedUsername = null,
+                        rememberedUserId = null,
+                        biometricAvailable = false
+                    )
+                }
+
+                return@launch
+            }
+
+            val user = userRepository.getUserById(userId)
+
+            if (user == null) {
+                userPreferencesRepository.clearLastUserId()
+
+                _rememberedUser.value = null
+
+                _uiState.update {
+                    it.copy(
+                        rememberedUsername = null,
+                        rememberedUserId = null,
+                        selectedUserId = null,
+                        biometricAvailable = false
+                    )
+                }
+
+                return@launch
+            }
+
+            _rememberedUser.value = user
+
+            val biometricEnabled =
+                biometricRepository.isBiometricEnabled(user.username)
+
+            _uiState.update {
+                it.copy(
+                    rememberedUsername = user.username,
+                    rememberedUserId = user.id,
+                    selectedUserId = user.id,
+                    username = user.username,
+                    biometricAvailable = biometricEnabled
                 )
             }
         }
     }
 
+    fun tryAutomaticBiometricLogin(
+        onAuthenticate: (Cipher, Long) -> Unit,
+        onUnavailable: () -> Unit
+    ) {
+
+        if (autoBiometricAttempted) {
+            return
+        }
+
+        val userId =
+            _uiState.value.rememberedUserId
+                ?: return
+
+        if (!_uiState.value.biometricAvailable) {
+            return
+        }
+
+        autoBiometricAttempted = true
+
+        biometricLoginForUserId(
+            userId = userId,
+            onAuthenticate = onAuthenticate,
+            onUnavailable = onUnavailable
+        )
+    }
+
     private fun clearBiometricState() {
+
         biometricEncryptedVaultKey?.fill(0)
+
         biometricEncryptedVaultKey = null
         biometricUserId = null
     }
@@ -283,5 +580,57 @@ class LoginViewModel(
     override fun onCleared() {
         clearBiometricState()
         super.onCleared()
+    }
+
+    fun selectAccount(
+        user: UserEntity,
+        onAuthenticate: (Cipher, Long) -> Unit,
+        onUnavailable: () -> Unit
+    ) {
+        _uiState.update {
+            it.copy(
+                selectedUserId = user.id,
+                username = user.username,
+                password = "",
+                usernameError = null,
+                passwordError = null,
+                loginError = null,
+                biometricAvailable = false
+            )
+        }
+
+        viewModelScope.launch {
+            try {
+                val biometricEnabled =
+                    biometricRepository.isBiometricEnabled(user.username)
+
+                _uiState.update {
+                    it.copy(
+                        biometricAvailable = biometricEnabled
+                    )
+                }
+
+                if (biometricEnabled) {
+                    biometricLoginForUserId(
+                        userId = user.id,
+                        onAuthenticate = onAuthenticate,
+                        onUnavailable = onUnavailable
+                    )
+                }
+
+            } catch (e: Exception) {
+                Log.e(
+                    "AccountSelection",
+                    "Failed to check biometric availability",
+                    e
+                )
+
+                _uiState.update {
+                    it.copy(
+                        biometricAvailable = false
+                    )
+                }
+            }
+        }
     }
 }
