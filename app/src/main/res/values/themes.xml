@@ -6,4 +6,14 @@
     </style>
 
     <style name="Theme.Cicada" parent="Base.Theme.Cicada" />
+
+
+    <style name="Theme.Cicada.AutofillAuth" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowCloseOnTouchOutside">false</item>
+    </style>
 </resources>

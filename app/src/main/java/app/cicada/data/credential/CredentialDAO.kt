@@ -1,5 +1,6 @@
 package app.cicada.data.credential
 
+import android.icu.text.ListFormatter
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
@@ -24,4 +25,11 @@ interface CredentialDAO {
 
     @Delete
     suspend fun deleteCredential(credential: CredentialEntity)
+
+
+    @Query("SELECT * FROM credentials WHERE userId = :userId ORDER BY createdTime DESC")
+    suspend fun getCredentialsForUser(userId: String): List<CredentialEntity>
+
+    @Query("SELECT * FROM credentials WHERE userId = :userId AND websiteDomain = :websiteDomain ORDER BY createdTime DESC")
+    suspend fun getCredentialsForDomain(userId: String, websiteDomain: String): List<CredentialEntity>
 }

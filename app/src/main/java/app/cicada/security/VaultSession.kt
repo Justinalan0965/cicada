@@ -3,12 +3,14 @@ package app.cicada.security
 class VaultSession {
 
     companion object {
-        private const val AUTO_LOCK_TIMEOUT_MS = 5 * 60 * 1000L
+        const val DEFAULT_TIMEOUT_MS = 5 * 60 * 1000L
     }
 
     private var userId: String? = null
     private var vaultKey: ByteArray? = null
     private var lastActivityTime: Long = 0L
+
+    var autoLockTimeoutMs: Long = DEFAULT_TIMEOUT_MS
 
     val isUnlocked: Boolean
         get() = vaultKey != null
@@ -37,7 +39,7 @@ class VaultSession {
 
         val elapsed = System.currentTimeMillis() - lastActivityTime
 
-        return elapsed >= AUTO_LOCK_TIMEOUT_MS
+        return elapsed >= autoLockTimeoutMs
     }
 
     fun getUserId(): String {
