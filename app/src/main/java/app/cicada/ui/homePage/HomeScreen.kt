@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.cicada.data.credential.Credential
+import app.cicada.ui.components.GroupedCredentialCard
 import app.cicada.ui.components.SiteIcon
 import app.cicada.viewmodel.home.HomeViewModel
 import java.util.UUID
@@ -212,13 +214,64 @@ fun CredentialList(
     credentials: List<Credential>,
     onClick: (String) -> Unit
 ) {
+    // 1. Group by the base domain and sort alphabetically
+    val groupedCredentials = remember(credentials) {
+        credentials.groupBy { getBaseDomain(it.website) }
+            .toSortedMap(compareBy { it })
+    }
+
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(credentials, key = { it.id }) { credential ->
-            CredentialCard(credential, onClick)
+        groupedCredentials.forEach { (domain, credsInDomain) ->
+
+            item(key = "header-$domain") {
+                SectionHeader(
+                    domain = domain,
+                    website = credsInDomain.first().website ?: ""
+                )
+            }
+
+            // 3. Render the individual cards for this section
+            items(credsInDomain, key = { it.id }) { credential ->
+                CredentialCard(credential = credential, onClick = onClick)
+            }
+
+            // 4. Add a slightly larger gap at the end of each section
+            item(key = "spacer-$domain") {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
         }
+    }
+}
+
+@Composable
+fun SectionHeader(domain: String, website: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            // Padding aligns the text nicely with the cards below
+            .padding(start = 8.dp, top = 16.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // A smaller version of your icon for the header
+        SiteIcon(
+            title = domain,
+            website = website,
+            // If your SiteIcon takes a modifier, constrain its size here (e.g., 24.dp)
+            // modifier = Modifier.size(24.dp)
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Text(
+            // Capitalize the first letter of the domain (e.g. "Google")
+            text = domain.replaceFirstChar { it.uppercase() },
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -235,38 +288,46 @@ fun CredentialCard(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
-        Row(
+        Column(
             modifier = Modifier
+                .fillMaxWidth()
                 .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
         ) {
-            SiteIcon(
-                title = credential.title,
-                website = credential.website
+            Text(
+                text = credential.title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = credential.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = credential.username,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            Text(
+                text = credential.username,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
+}
+
+fun getBaseDomain(url: String?): String {
+    if (url.isNullOrBlank()) return "Other"
+
+    // 1. Strip protocol, www, and make it completely lowercase to fix the Instagram issue
+    var domain = url.replace(Regex("^https?://"), "")
+        .replace(Regex("^www\\."), "")
+        .substringBefore("/")
+        .lowercase()
+
+    // 2. Handle subdomains (e.g., turning accounts.google.com into google.com)
+    val parts = domain.split(".")
+    if (parts.size > 2) {
+        // Grab just the main domain and TLD (e.g., google + com)
+        domain = "${parts[parts.size - 2]}.${parts[parts.size - 1]}"
+    }
+
+    // Return capitalized version (e.g., "Google.com")
+    return domain.replaceFirstChar { it.uppercase() }
 }
 
 @Preview(showBackground = true)

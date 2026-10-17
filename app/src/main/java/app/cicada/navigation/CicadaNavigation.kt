@@ -1,4 +1,4 @@
-package app.cicada.ui.navigation
+package app.cicada.navigation
 
 import android.util.Log
 import androidx.compose.animation.core.tween
@@ -8,6 +8,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,6 +22,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import app.cicada.CicadaApplication
 import app.cicada.data.credential.CredentialRepository
 import app.cicada.data.database.CicadaDB
 import app.cicada.data.preferences.UserPreferencesRepository
@@ -84,9 +86,7 @@ fun CicadaNavigation() {
         UserPreferencesRepository(context)
     }
 
-    val vaultSession = remember {
-        VaultSession()
-    }
+    val vaultSession = (context.applicationContext as CicadaApplication).vaultSession
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         if (vaultSession.shouldAutoLock()) {
@@ -313,6 +313,10 @@ fun CicadaNavigation() {
                     biometricRepository.isBiometricEnabledForCurrentUser()
             }
 
+            val currentTimeoutMs by userPreferencesRepository.autoLockTimeout.collectAsState(
+                initial = 300_000L // 5 minutes
+            )
+
             SettingScreen(
                 onBackClick = {
                     navController.popBackStack()
@@ -406,9 +410,15 @@ fun CicadaNavigation() {
                             )
                         }
                     }
+                },
+                currentTimeoutMs = currentTimeoutMs,
+
+                onTimeoutChange = { newTimeout ->
+                    coroutineScope.launch {
+                        userPreferencesRepository.setAutoLockTimeout(newTimeout)
+                    }
                 }
             )
         }
-
     }
 }

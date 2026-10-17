@@ -11,6 +11,10 @@ class CredentialEntity (
 
     val userId: String,
 
+    val websiteDomain: String?,
+
+    val username: String?,
+
     val encryptedData: ByteArray,
 
     val createdTime: Long

@@ -16,7 +16,7 @@ import app.cicada.data.user.UserEntity
         UserEntity::class,
         CredentialEntity::class
     ],
-    version = 6,
+    version = 8,
     exportSchema = false
 )
 abstract class CicadaDB : RoomDatabase() {
@@ -48,6 +48,25 @@ abstract class CicadaDB : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+            ALTER TABLE credentials
+            ADD COLUMN websiteDomain TEXT
+        """.trimIndent())
+            }
+        }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+            ALTER TABLE credentials
+            ADD COLUMN username TEXT
+        """.trimIndent())
+            }
+        }
+
+
         @Volatile
         private var INSTANCE: CicadaDB? = null
 
@@ -59,7 +78,12 @@ abstract class CicadaDB : RoomDatabase() {
                     CicadaDB::class.java,
                     "cicada_db"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                        MIGRATION_6_7,
+                        MIGRATION_7_8
+                    )
                     .build()
 
                 INSTANCE = instance
