@@ -1,5 +1,6 @@
 package app.cicada.ui.homePage
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +23,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Password
+import androidx.compose.material.icons.filled.PhoneMissed
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
@@ -32,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -46,13 +51,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import app.cicada.R
 import app.cicada.data.credential.Credential
-import app.cicada.ui.components.GroupedCredentialCard
 import app.cicada.ui.components.SiteIcon
 import app.cicada.viewmodel.home.HomeViewModel
 import java.util.UUID
@@ -60,11 +65,28 @@ import java.util.UUID
 enum class Destination(
     val route: String,
     val label: String,
-    val icon: ImageVector,
-    val contentDescription: String
+    val contentDescription: String,
+    val iconVector: ImageVector? = null,
+    @DrawableRes val iconDrawable: Int? = null
 ) {
-    Vault(route = "home", label = "Home", icon = Icons.Default.Home, contentDescription = "Home page"),
-    Settings(route = "settings", label = "Settings", icon = Icons.Default.Settings, contentDescription = "App Settings")
+    Vault(
+        route = "home",
+        label = "Home",
+        iconVector = Icons.Default.Home,
+        contentDescription = "Home page"
+    ),
+    PasswordGenerator(
+        route = "pwdGenerator",
+        label = "Generator",
+        contentDescription = "Password Generator",
+        iconVector = Icons.Default.Password
+    ),
+    Settings(
+        route = "settings",
+        label = "Settings",
+        iconVector = Icons.Default.Settings,
+        contentDescription = "App Settings"
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -145,12 +167,27 @@ fun HomeScreen(
                         selected = currentRoute == destination.route,
                         onClick = { onNavigateBottomBar(destination.route) },
                         icon = {
-                            Icon(
-                                imageVector = destination.icon,
-                                contentDescription = destination.contentDescription
-                            )
+                            if (destination.iconVector != null) {
+                                Icon(
+                                    imageVector = destination.iconVector,
+                                    contentDescription = destination.contentDescription
+                                )
+                            } else if (destination.iconDrawable != null) {
+                                Icon(
+                                    painter = painterResource(id = destination.iconDrawable),
+                                    contentDescription = destination.contentDescription,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         },
-                        label = { Text(destination.label) }
+                        label = { Text(destination.label) },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }
