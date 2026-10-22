@@ -36,6 +36,7 @@ import app.cicada.ui.addCredentialPage.AddCredentialScreen
 import app.cicada.ui.createUserPage.CreateUserScreen
 import app.cicada.ui.homePage.HomeScreen
 import app.cicada.ui.loginPage.LoginScreen
+import app.cicada.ui.pwdGeneratorPage.PasswordGeneratorScreen
 import app.cicada.ui.settingsPage.SettingScreen
 import app.cicada.ui.viewCredentialPage.ViewCredentialScreen
 import app.cicada.viewmodel.addCredential.AddCredentialViewModel
@@ -127,7 +128,7 @@ fun CicadaNavigation() {
 
             CreateUserScreen(
                 onBackClick = {
-                    navController.popBackStack()
+                    navController.navigate("login")
                 },
                 onUserCreated = {
                     navController.navigate("login") {
@@ -245,7 +246,7 @@ fun CicadaNavigation() {
 
             AddCredentialScreen(
                 onNavigateBack = {
-                    navController.popBackStack()
+                    navController.navigate("home")
                 },
                 addCredentialViewModel = addCredentialViewModel
             )
@@ -273,7 +274,7 @@ fun CicadaNavigation() {
                 credentialId = credentialId ?: "",
                 clipboardManager = clipboardManager,
                 onNavigateBack = {
-                    navController.popBackStack()
+                    navController.navigate("home")
                 },
                 onEdit = {
                     navController.navigate("editCredential/$credentialId")
@@ -295,7 +296,7 @@ fun CicadaNavigation() {
 
             AddCredentialScreen(
                 onNavigateBack = {
-                    navController.popBackStack()
+                    navController.navigate("home")
                 },
                 addCredentialViewModel = addCredentialViewModel,
                 credentialId = credentialId
@@ -319,7 +320,7 @@ fun CicadaNavigation() {
 
             SettingScreen(
                 onBackClick = {
-                    navController.popBackStack()
+                    navController.navigate("home")
                 },
 
                 onLockVault = {
@@ -418,6 +419,15 @@ fun CicadaNavigation() {
                         userPreferencesRepository.setAutoLockTimeout(newTimeout)
                     }
                 }
+            )
+        }
+
+        composable("pwdGenerator") {
+            PasswordGeneratorScreen(
+                onNavigateBack = {
+                    navController.navigate("home")
+                },
+                clipboardManager = clipboardManager
             )
         }
     }
