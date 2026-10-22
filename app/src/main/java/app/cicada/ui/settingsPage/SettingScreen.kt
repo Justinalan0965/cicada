@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.dp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingScreen(
-    onBackClick: () -> Unit,
     onLockVault: () -> Unit,
     biometricEnabled: Boolean,
     onEnableBiometric: () -> Unit,
@@ -71,12 +70,7 @@ fun SettingScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "Settings", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Navigate Back")
-                    }
-                }
+                title = { Text(text = "Settings", fontWeight = FontWeight.Bold) }
             )
         }
     ) { paddingValues ->

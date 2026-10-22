@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -14,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -31,8 +34,9 @@ import app.cicada.data.user.UserRepository
 import app.cicada.security.BiometricAuthenticator
 import app.cicada.security.CicadaClipboardManager
 import app.cicada.security.CryptoManager
-import app.cicada.security.VaultSession
 import app.cicada.ui.addCredentialPage.AddCredentialScreen
+import app.cicada.ui.components.CicadaBottomBar
+import app.cicada.ui.components.Destination
 import app.cicada.ui.createUserPage.CreateUserScreen
 import app.cicada.ui.homePage.HomeScreen
 import app.cicada.ui.loginPage.LoginScreen
@@ -116,319 +120,332 @@ fun CicadaNavigation() {
         )
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = "login"
-    ) {
-
-        composable("createUser") {
-            val createUserViewModel : CreateUserViewModel = viewModel(
-                factory = CreateUserViewModelFactory(userRepository)
-            )
-
-            CreateUserScreen(
-                onBackClick = {
-                    navController.navigate("login")
-                },
-                onUserCreated = {
-                    navController.navigate("login") {
-                        popUpTo("createUser") {
-                            inclusive = true
-                        }
-                    }
-                },
-                createUserViewModel = createUserViewModel
-            )
+    LaunchedEffect(Unit) {
+        userPreferencesRepository.autoLockTimeout.collect { timeoutMs ->
+            vaultSession.autoLockTimeoutMs = timeoutMs
         }
+    }
 
-        composable("login") {
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
 
-            val loginViewModel: LoginViewModel =
-                viewModel(
-                    factory = LoginViewModelFactory(
-                        userRepository = userRepository,
-                        vaultSession = vaultSession,
-                        biometricRepository = biometricRepository,
-                        userPreferencesRepository = userPreferencesRepository
+    val showBottomBar = currentRoute in listOf(
+        Destination.Vault.route,
+        Destination.Settings.route,
+        Destination.PasswordGenerator.route
+    )
+
+    Scaffold(
+        bottomBar = {
+            if (showBottomBar) {
+                CicadaBottomBar(
+                    navController = navController,
+                    currentRoute = currentRoute
+                )
+            }
+        }
+    ) { outerPadding ->
+
+        NavHost(
+            navController = navController,
+            startDestination = "login",
+            modifier = Modifier.padding(bottom = outerPadding.calculateBottomPadding())
+        ) {
+
+            composable("createUser") {
+                val createUserViewModel: CreateUserViewModel = viewModel(
+                    factory = CreateUserViewModelFactory(userRepository)
+                )
+
+                CreateUserScreen(
+                    onBackClick = {
+                        navController.navigate("login")
+                    },
+                    onUserCreated = {
+                        navController.navigate("login") {
+                            popUpTo("createUser") {
+                                inclusive = true
+                            }
+                        }
+                    },
+                    createUserViewModel = createUserViewModel
+                )
+            }
+
+            composable("login") {
+
+                val loginViewModel: LoginViewModel =
+                    viewModel(
+                        factory = LoginViewModelFactory(
+                            userRepository = userRepository,
+                            vaultSession = vaultSession,
+                            biometricRepository = biometricRepository,
+                            userPreferencesRepository = userPreferencesRepository
+                        )
+                    )
+
+                LoginScreen(
+
+                    onLoginSuccess = {
+                        navController.navigate("home") {
+                            popUpTo("login") {
+                                inclusive = true
+                            }
+                        }
+                    },
+
+                    onCreateAccount = {
+                        navController.navigate("createUser")
+                    },
+
+                    onBiometricLogin = { cipher, requestId ->
+
+                        biometricAuthenticator.authenticate(
+
+                            cipher = cipher,
+
+                            onSuccess = { authenticatedCipher ->
+
+                                loginViewModel.completeBiometricLogin(
+                                    authenticatedCipher,
+                                    requestId
+                                )
+                            },
+
+                            onFailure = { error ->
+
+                                loginViewModel.cancelBiometricLogin()
+
+                                Log.d(
+                                    "BiometricLogin",
+                                    "Authentication failed: $error"
+                                )
+                            }
+                        )
+                    },
+
+                    biometricAuthenticator = biometricAuthenticator,
+
+                    loginViewModel = loginViewModel
+                )
+            }
+
+            composable("home") {
+                val homeViewModel: HomeViewModel = viewModel(
+                    factory = HomeViewModelFactory(
+                        credentialRepository = credentialRepository
                     )
                 )
 
-            LoginScreen(
-
-                onLoginSuccess = {
-                    navController.navigate("home") {
-                        popUpTo("login") {
-                            inclusive = true
-                        }
+                HomeScreen(
+                    homeViewModel = homeViewModel,
+                    onNavigateToAdd = { navController.navigate("addCredential") },
+                    onClick = { credentialId -> navController.navigate("viewCredential/${credentialId}") },
+                    onLock = {
+                        vaultSession.lock()
+                        navController.navigate("login") { popUpTo("home") { inclusive = true } }
                     }
-                },
+                )
+            }
 
-                onCreateAccount = {
-                    navController.navigate("createUser")
-                },
-
-                onBiometricLogin = { cipher, requestId ->
-
-                    biometricAuthenticator.authenticate(
-
-                        cipher = cipher,
-
-                        onSuccess = { authenticatedCipher ->
-
-                            loginViewModel.completeBiometricLogin(
-                                authenticatedCipher,
-                                requestId
-                            )
-                        },
-
-                        onFailure = { error ->
-
-                            loginViewModel.cancelBiometricLogin()
-
-                            Log.d(
-                                "BiometricLogin",
-                                "Authentication failed: $error"
-                            )
-                        }
+            composable("addCredential") {
+                val addCredentialViewModel: AddCredentialViewModel = viewModel(
+                    factory = AddCredentialViewModelFactory(
+                        credentialRepository = credentialRepository
                     )
-                },
-
-                biometricAuthenticator = biometricAuthenticator,
-
-                loginViewModel = loginViewModel
-            )
-        }
-
-        composable("home") {
-            val homeViewModel : HomeViewModel = viewModel(
-                factory = HomeViewModelFactory(
-                    credentialRepository = credentialRepository
                 )
-            )
-            val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentRoute = navBackStackEntry?.destination?.route
 
-            HomeScreen(
-                homeViewModel = homeViewModel,
-                onNavigateToAdd = {
-                    navController.navigate("addCredential")
-                },
-                currentRoute = currentRoute,
-                onNavigateBottomBar = { route ->
-                    navController.navigate(route) {
-                        popUpTo(navController.graph.startDestinationId) {
-                            saveState = true
+                AddCredentialScreen(
+                    onNavigateBack = {
+                        if (navController.previousBackStackEntry != null) {
+                            navController.popBackStack()
                         }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    },
+                    addCredentialViewModel = addCredentialViewModel
+                )
+            }
+
+            composable(
+                route = "viewCredential/{credentialId}",
+                enterTransition = {
+                    scaleIn(
+                        initialScale = 0.9f,
+                        animationSpec = tween(300)
+                    ) + fadeIn(animationSpec = tween(300))
                 },
-                onClick = { credentialId -> navController.navigate("viewCredential/${credentialId}") },
-
-                onLock = {
-                    vaultSession.lock()
-
-                    navController.navigate("login") {
-                        popUpTo("home") {
-                            inclusive = true
-                        }
-                    }
+                exitTransition = {
+                    scaleOut(
+                        targetScale = 0.9f,
+                        animationSpec = tween(300)
+                    ) + fadeOut(animationSpec = tween(300))
                 }
-            )
-        }
+            ) { backStackEntry ->
+                val credentialId = backStackEntry.arguments?.getString("credentialId")
 
-        composable("addCredential") {
-            val addCredentialViewModel : AddCredentialViewModel = viewModel(
-                factory = AddCredentialViewModelFactory(
-                    credentialRepository = credentialRepository
+                val viewCredentialViewModel: ViewCredentialViewModel = viewModel(
+                    factory = ViewCredentialViewModelFactory(
+                        credentialRepository = credentialRepository
+                    )
                 )
-            )
 
-            AddCredentialScreen(
-                onNavigateBack = {
-                    navController.navigate("home")
-                },
-                addCredentialViewModel = addCredentialViewModel
-            )
-        }
-
-        composable(
-            route = "viewCredential/{credentialId}",
-            enterTransition = {
-                scaleIn(initialScale = 0.9f, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
-            },
-            exitTransition = {
-                scaleOut(targetScale = 0.9f, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-            }
-        )  { backStackEntry ->
-            val credentialId = backStackEntry.arguments?.getString("credentialId")
-
-            val viewCredentialViewModel: ViewCredentialViewModel = viewModel(
-                factory = ViewCredentialViewModelFactory(
-                    credentialRepository = credentialRepository
-                )
-            )
-
-            ViewCredentialScreen(
-                viewCredentialViewModel = viewCredentialViewModel,
-                credentialId = credentialId ?: "",
-                clipboardManager = clipboardManager,
-                onNavigateBack = {
-                    navController.navigate("home")
-                },
-                onEdit = {
-                    navController.navigate("editCredential/$credentialId")
-                }
-            )
-        }
-
-        composable(
-            route = "editCredential/{credentialId}"
-        ) { backStackEntry ->
-
-            val credentialId = backStackEntry.arguments?.getString("credentialId")
-
-            val addCredentialViewModel: AddCredentialViewModel = viewModel(
-                factory = AddCredentialViewModelFactory(
-                    credentialRepository = credentialRepository
-                )
-            )
-
-            AddCredentialScreen(
-                onNavigateBack = {
-                    navController.navigate("home")
-                },
-                addCredentialViewModel = addCredentialViewModel,
-                credentialId = credentialId
-            )
-        }
-
-        composable("settings") {
-
-            var biometricEnabled by remember {
-                mutableStateOf(false)
-            }
-
-            LaunchedEffect(Unit) {
-                biometricEnabled =
-                    biometricRepository.isBiometricEnabledForCurrentUser()
-            }
-
-            val currentTimeoutMs by userPreferencesRepository.autoLockTimeout.collectAsState(
-                initial = 300_000L // 5 minutes
-            )
-
-            SettingScreen(
-                onBackClick = {
-                    navController.navigate("home")
-                },
-
-                onLockVault = {
-                    vaultSession.lock()
-
-                    navController.navigate("login") {
-                        popUpTo("home") {
-                            inclusive = true
+                ViewCredentialScreen(
+                    viewCredentialViewModel = viewCredentialViewModel,
+                    credentialId = credentialId ?: "",
+                    clipboardManager = clipboardManager,
+                    onNavigateBack = {
+                        if (navController.previousBackStackEntry != null) {
+                            navController.popBackStack()
                         }
+                    },
+                    onEdit = {
+                        navController.navigate("editCredential/$credentialId")
                     }
-                },
+                )
+            }
 
-                biometricEnabled = biometricEnabled,
+            composable(
+                route = "editCredential/{credentialId}"
+            ) { backStackEntry ->
 
-                onEnableBiometric = {
+                val credentialId = backStackEntry.arguments?.getString("credentialId")
 
-                    val cipher =
-                        biometricRepository.prepareEnrollmentCipher()
+                val addCredentialViewModel: AddCredentialViewModel = viewModel(
+                    factory = AddCredentialViewModelFactory(
+                        credentialRepository = credentialRepository
+                    )
+                )
 
-                    biometricAuthenticator.authenticate(
-                        cipher = cipher,
+                AddCredentialScreen(
+                    onNavigateBack = {
+                        if (navController.previousBackStackEntry != null) {
+                            navController.popBackStack()
+                        }
+                    },
+                    addCredentialViewModel = addCredentialViewModel,
+                    credentialId = credentialId
+                )
+            }
 
-                        onSuccess = { authenticatedCipher ->
+            composable("settings") {
 
-                            coroutineScope.launch {
+                var biometricEnabled by remember {
+                    mutableStateOf(false)
+                }
+
+                LaunchedEffect(Unit) {
+                    biometricEnabled =
+                        biometricRepository.isBiometricEnabledForCurrentUser()
+                }
+
+                val currentTimeoutMs by userPreferencesRepository.autoLockTimeout.collectAsState(
+                    initial = 300_000L // 5 minutes
+                )
+
+                SettingScreen(
+                    onLockVault = {
+                        vaultSession.lock()
+
+                        navController.navigate("login") {
+                            popUpTo("home") {
+                                inclusive = true
+                            }
+                        }
+                    },
+
+                    biometricEnabled = biometricEnabled,
+
+                    onEnableBiometric = {
+
+                        val cipher =
+                            biometricRepository.prepareEnrollmentCipher()
+
+                        biometricAuthenticator.authenticate(
+                            cipher = cipher,
+
+                            onSuccess = { authenticatedCipher ->
+
+                                coroutineScope.launch {
+                                    try {
+
+                                        biometricRepository.saveBiometricVaultKey(
+                                            authenticatedCipher
+                                        )
+
+                                        biometricEnabled = true
+
+                                        Log.d(
+                                            "Biometric",
+                                            "Biometric unlock enabled"
+                                        )
+
+                                    } catch (e: Exception) {
+
+                                        Log.e(
+                                            "Biometric",
+                                            "Failed to enable biometric",
+                                            e
+                                        )
+                                    }
+                                }
+                            },
+
+                            onFailure = { error ->
                                 try {
-
-                                    biometricRepository.saveBiometricVaultKey(
-                                        authenticatedCipher
-                                    )
-
-                                    biometricEnabled = true
-
-                                    Log.d(
-                                        "Biometric",
-                                        "Biometric unlock enabled"
-                                    )
-
+                                    biometricRepository.cancelEnrollment()
                                 } catch (e: Exception) {
-
                                     Log.e(
                                         "Biometric",
-                                        "Failed to enable biometric",
+                                        "Failed to clean up biometric enrollment",
                                         e
                                     )
                                 }
+                                Log.d(
+                                    "Biometric",
+                                    "Biometric enrollment cancelled/failed: $error"
+                                )
                             }
-                        },
+                        )
+                    },
 
-                        onFailure = { error ->
+                    onDisableBiometric = {
+
+                        coroutineScope.launch {
                             try {
-                                biometricRepository.cancelEnrollment()
+
+                                biometricRepository.disableBiometric()
+
+                                biometricEnabled = false
+
+                                Log.d(
+                                    "Biometric",
+                                    "Biometric unlock disabled"
+                                )
+
                             } catch (e: Exception) {
+
                                 Log.e(
                                     "Biometric",
-                                    "Failed to clean up biometric enrollment",
+                                    "Failed to disable biometric",
                                     e
                                 )
                             }
-                            Log.d(
-                                "Biometric",
-                                "Biometric enrollment cancelled/failed: $error"
-                            )
                         }
-                    )
-                },
+                    },
+                    currentTimeoutMs = currentTimeoutMs,
 
-                onDisableBiometric = {
-
-                    coroutineScope.launch {
-                        try {
-
-                            biometricRepository.disableBiometric()
-
-                            biometricEnabled = false
-
-                            Log.d(
-                                "Biometric",
-                                "Biometric unlock disabled"
-                            )
-
-                        } catch (e: Exception) {
-
-                            Log.e(
-                                "Biometric",
-                                "Failed to disable biometric",
-                                e
-                            )
+                    onTimeoutChange = { newTimeout ->
+                        coroutineScope.launch {
+                            userPreferencesRepository.setAutoLockTimeout(newTimeout)
                         }
                     }
-                },
-                currentTimeoutMs = currentTimeoutMs,
+                )
+            }
 
-                onTimeoutChange = { newTimeout ->
-                    coroutineScope.launch {
-                        userPreferencesRepository.setAutoLockTimeout(newTimeout)
-                    }
-                }
-            )
-        }
-
-        composable("pwdGenerator") {
-            PasswordGeneratorScreen(
-                onNavigateBack = {
-                    navController.navigate("home")
-                },
-                clipboardManager = clipboardManager
-            )
+            composable("pwdGenerator") {
+                PasswordGeneratorScreen(
+                    clipboardManager = clipboardManager
+                )
+            }
         }
     }
 }

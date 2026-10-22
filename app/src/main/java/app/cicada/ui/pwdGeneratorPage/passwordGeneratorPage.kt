@@ -6,7 +6,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -24,7 +23,6 @@ import java.security.SecureRandom
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PasswordGeneratorScreen(
-    onNavigateBack: () -> Unit,
     clipboardManager: CicadaClipboardManager
 ) {
     var password by remember { mutableStateOf("") }
@@ -71,21 +69,7 @@ fun PasswordGeneratorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Generator", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Navigate Back")
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { clipboardManager.copy("Password", password) },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                icon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                text = { Text("Copy Password", style = MaterialTheme.typography.titleMedium) }
+                title = { Text("Generator", fontWeight = FontWeight.Bold) }
             )
         }
     ) { paddingValues ->
@@ -133,18 +117,38 @@ fun PasswordGeneratorScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    Button(
-                        onClick = {
-                            regenerateToken++
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Regenerate")
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Regenerate")
+                        Button(
+                            onClick = {
+                                regenerateToken++
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Regenerate")
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Regenerate")
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        Button(
+                            onClick = { clipboardManager.copy("Password", password) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy")
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Copy")
+                        }
                     }
                 }
             }
@@ -221,7 +225,7 @@ fun PasswordGeneratorScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(88.dp)) // Avoid FAB overlap
+            Spacer(modifier = Modifier.height(100.dp))
         }
     }
 }
