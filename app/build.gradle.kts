@@ -97,4 +97,7 @@ dependencies {
 
 //    Datastore
     implementation(libs.androidx.datastore.preferences)
+
+//    PWD Strength
+    implementation("com.nulab-inc:zxcvbn:1.9.0")
 }
