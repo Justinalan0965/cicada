@@ -31,6 +31,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +40,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import app.cicada.security.PasswordBreachResult
+import app.cicada.security.PasswordStrengthChecker
+import app.cicada.ui.components.PasswordBreachIndicator
+import app.cicada.ui.components.PasswordStrengthIndicator
 import app.cicada.viewmodel.addCredential.AddCredentialViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,7 +54,16 @@ fun AddCredentialScreen(
     credentialId: String? = null
 ) {
     val uiState by addCredentialViewModel.uiState.collectAsState()
+
     var passwordVisible by remember { mutableStateOf(false) }
+
+    val passwordStrength = remember(uiState.password) {
+        PasswordStrengthChecker.evaluate(uiState.password)
+    }
+
+    var breachResult by remember {
+        mutableStateOf<PasswordBreachResult?>(null)
+    }
 
     LaunchedEffect(credentialId) {
         if (credentialId != null) {
@@ -146,7 +160,10 @@ fun AddCredentialScreen(
             // Password Field
             OutlinedTextField(
                 value = uiState.password,
-                onValueChange = { addCredentialViewModel.updatePassword(it) },
+                onValueChange = {
+                    addCredentialViewModel.updatePassword(it)
+                    breachResult = null
+                },
                 label = { Text("Password") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -168,6 +185,16 @@ fun AddCredentialScreen(
                     }
                 },
                 shape = RoundedCornerShape(12.dp)
+            )
+
+            passwordStrength ?. let { result ->
+                PasswordStrengthIndicator(
+                    result = result
+                )
+            }
+
+            PasswordBreachIndicator(
+                password = uiState.password
             )
 
             // Website Field

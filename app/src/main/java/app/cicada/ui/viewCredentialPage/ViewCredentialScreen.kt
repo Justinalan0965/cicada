@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.cicada.security.CicadaClipboardManager
+import app.cicada.ui.components.PasswordBreachIndicator
 import app.cicada.ui.components.SiteIcon
 import app.cicada.viewmodel.viewCredential.ViewCredentialViewModel
 
@@ -205,12 +206,20 @@ fun ViewCredentialScreen(
                         // Centered Visual Header
                         SiteIcon(
                             title = credential.title,
-                            website = credential.website,
-                            // You can modify your SiteIcon component to accept a size modifier
-                            // modifier = Modifier.size(72.dp)
+                            website = credential.website
                         )
 
                         Spacer(modifier = Modifier.height(32.dp))
+
+                        PasswordBreachIndicator(
+                            password = credential.password,
+                            website = credential.website,
+                            autoCheck = true
+                        )
+
+                        Spacer(
+                            modifier = Modifier.height(16.dp)
+                        )
 
                         // Primary Credential Card
                         Card(

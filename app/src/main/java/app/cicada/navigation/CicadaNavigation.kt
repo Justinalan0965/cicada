@@ -257,8 +257,10 @@ fun CicadaNavigation() {
 
                 AddCredentialScreen(
                     onNavigateBack = {
-                        if (navController.previousBackStackEntry != null) {
-                            navController.popBackStack()
+                        if (!navController.popBackStack("home", false)) {
+                            navController.navigate("home") {
+                                launchSingleTop = true
+                            }
                         }
                     },
                     addCredentialViewModel = addCredentialViewModel
@@ -293,8 +295,10 @@ fun CicadaNavigation() {
                     credentialId = credentialId ?: "",
                     clipboardManager = clipboardManager,
                     onNavigateBack = {
-                        if (navController.previousBackStackEntry != null) {
-                            navController.popBackStack()
+                        if (!navController.popBackStack("home", false)) {
+                            navController.navigate("home") {
+                                launchSingleTop = true
+                            }
                         }
                     },
                     onEdit = {
@@ -317,8 +321,10 @@ fun CicadaNavigation() {
 
                 AddCredentialScreen(
                     onNavigateBack = {
-                        if (navController.previousBackStackEntry != null) {
-                            navController.popBackStack()
+                        if (!navController.popBackStack("home", false)) {
+                            navController.navigate("home") {
+                                launchSingleTop = true
+                            }
                         }
                     },
                     addCredentialViewModel = addCredentialViewModel,
